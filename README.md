@@ -1,4 +1,4 @@
-# Corsa BT — computer da corsa per Xiaomi Watch 2 + Strava su iPhone
+# Corsa BT: computer da corsa per Xiaomi Watch 2 + Strava su iPhone
 
 App per Wear OS. Sull'orologio vedi passo, battito, zone, ripetute e fartlek;
 in contemporanea l'orologio fa da **fascia cardio Bluetooth** per l'app Strava
