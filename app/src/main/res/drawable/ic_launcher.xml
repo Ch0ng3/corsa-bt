@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Same mark as LogoMark: accent ring with a heartbeat line. -->
+    <path
+        android:fillColor="#FF111114"
+        android:pathData="M24,0a24,24 0,1 1,0 48a24,24 0,1 1,0 -48z" />
+    <path
+        android:strokeColor="#FFFC4C02"
+        android:strokeWidth="3.2"
+        android:pathData="M24,5.6a18.4,18.4 0,1 1,0 36.8a18.4,18.4 0,1 1,0 -36.8z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,25.3L18.7,25.3L20.6,21.7L22.5,25.3L24,25.3L25.9,15L28,33.4L29.7,25.3L36,25.3" />
+</vector>
