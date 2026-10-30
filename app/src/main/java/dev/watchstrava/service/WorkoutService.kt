@@ -16,6 +16,7 @@ import android.hardware.SensorManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.altitude.AltitudeConverter
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -25,6 +26,7 @@ import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.wear.ongoing.OngoingActivity
@@ -38,11 +40,15 @@ import dev.watchstrava.engine.WorkoutEngine
 import dev.watchstrava.engine.WorkoutEngine.Event
 import dev.watchstrava.model.Format
 import dev.watchstrava.model.Route
+import dev.watchstrava.model.Sport
 import dev.watchstrava.model.StepKind
 import dev.watchstrava.model.Track
 import dev.watchstrava.service.WorkoutSession.Banner
 import dev.watchstrava.service.WorkoutSession.Tone
 import dev.watchstrava.ui.MainActivity
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import kotlin.math.exp
 
 /** Runs a workout: GPS, heart rate, step counter, BLE broadcast, vibration cues. */
 @SuppressLint("MissingPermission") // MainActivity grants permissions before starting
@@ -63,6 +69,10 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         private const val OFF_ROUTE_FIXES = 3
         private const val BACK_ON_ROUTE_M = 25.0
         private const val FINISH_ZONE_M = 30.0
+        private const val BARO_TAU_S = 5.0 // altitude smoothing time constant
+        private const val BARO_PERIOD_US = 500_000
+        private const val CALIB_FIXES = 5
+        private const val CALIB_MAX_VERTICAL_ACCURACY_M = 15f
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -79,11 +89,18 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
     private var armed = false
     private var offRoute = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private var baroAlt: Double? = null
+    private var baroNanos = 0L
+    private var baroSeenMs = 0L
+    private val calibOffsets = mutableListOf<Double>()
+    private var calibPending = false
+    private var altExecutor: ExecutorService? = null
 
     private val tick = object : Runnable {
         override fun run() {
             val e = engine ?: return
             val now = SystemClock.elapsedRealtime()
+            baroAlt?.let { if (now - baroSeenMs <= 5_000) e.onAltitude(now, it) }
             handle(e.tick(now))
             ble?.send(e.snapshot(now).heartRate)
             publish()
@@ -122,7 +139,8 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         WorkoutSession.pendingPlan = null
         val pendingRoute = WorkoutSession.pendingRoute
         WorkoutSession.pendingRoute = null
-        sensorOnly = !WorkoutSession.pendingUseGps
+        // Indoor climbing has no GPS either, but keeps its own pages.
+        sensorOnly = !WorkoutSession.pendingUseGps && plan.sport == Sport.RUN
         settings = Settings(this)
         useGps = WorkoutSession.pendingUseGps && granted(Manifest.permission.ACCESS_FINE_LOCATION)
         val broadcast = settings.broadcastHr && (Build.VERSION.SDK_INT < 31 ||
@@ -142,9 +160,13 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         }
 
         val now = SystemClock.elapsedRealtime()
-        // A race clock never stops on its own: aid stations count.
-        val labels = LapLabels({ getString(R.string.lap_label, it) }, { getString(it.label) })
-        val e = WorkoutEngine(plan, settings.maxHr, settings.autoPause && useGps && plan.race == null, labels)
+        // A race clock never stops on its own: aid stations count. Ski lifts and climbing rests neither.
+        val labels = LapLabels(
+            { getString(R.string.lap_label, it) }, { getString(it.label) },
+            run = { getString(R.string.run_label, it) }, climb = { getString(R.string.climb_label, it) },
+        )
+        val autoPause = settings.autoPause && useGps && plan.race == null && (plan.sport == Sport.RUN || plan.sport == Sport.HIKE)
+        val e = WorkoutEngine(plan, settings.maxHr, autoPause, labels)
         engine = e
         route = pendingRoute?.takeIf { useGps }
         track = Track().apply { route?.let { anchor(it.lat0, it.lon0) } }
@@ -153,8 +175,14 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         armed = false
         offRoute = false
         lastGood = null
+        baroAlt = null
+        calibOffsets.clear()
+        calibPending = false
+        if (useGps && Build.VERSION.SDK_INT >= 34) altExecutor = Executors.newSingleThreadExecutor()
 
         val sm = getSystemService(SensorManager::class.java)
+        // Barometric altitude in every mode (no permission needed); runs just show ascent in the summary.
+        if (!sensorOnly) sm.getDefaultSensor(Sensor.TYPE_PRESSURE)?.let { sm.registerListener(this, it, BARO_PERIOD_US) }
         if (sensors) sm.getDefaultSensor(Sensor.TYPE_HEART_RATE)?.let {
             sm.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
@@ -185,6 +213,8 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         runCatching { getSystemService(LocationManager::class.java).removeUpdates(this) }
         ble?.stop()
         ble = null
+        altExecutor?.shutdownNow()
+        altExecutor = null
         wakeLock?.takeIf { it.isHeld }?.release()
 
         val summary = e.finish()
@@ -228,7 +258,8 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
                 val title = getString(if (event.auto) R.string.fmt_km_n else R.string.lap_n, lap.number)
                 val ahead = engine?.snapshot(SystemClock.elapsedRealtime())?.race?.takeIf { !it.finished }?.aheadSec
                     ?.let { "\n" + getString(R.string.vs_goal, Format.ahead(it)) } ?: ""
-                show(title, "${Format.pace(lap.pace)} /km · ${Format.duration(lap.movingMs)}$hr$ahead", Tone.LAP)
+                val up = if (engine?.plan?.sport == Sport.HIKE) "\n↑ ${Format.height(lap.ascentM)} ↓ ${Format.height(lap.descentM)}" else ""
+                show(title, "${Format.pace(lap.pace)} /km · ${Format.duration(lap.movingMs)}$hr$ahead$up", Tone.LAP)
                 vibrate(longArrayOf(0, 150, 100, 150))
             }
             is Event.StepStarted -> {
@@ -264,6 +295,23 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
                 show(getString(if (event.paused) R.string.auto_paused else R.string.resumed), "", Tone.INFO)
                 vibrate(longArrayOf(0, 200))
             }
+            is Event.RunDone -> {
+                val lap = event.lap
+                show(
+                    getString(R.string.run_label, lap.number).uppercase(),
+                    "↓ ${Format.height(lap.descentM)} · ${getString(R.string.fmt_max_kmh, Format.kmh(lap.maxSpeedMps))}\n${Format.duration(lap.movingMs)}",
+                    Tone.LAP,
+                )
+                vibrate(longArrayOf(0, 150, 100, 150))
+            }
+            is Event.ClimbToggled -> {
+                vibrate(longArrayOf(0, 120))
+                val lap = event.lap ?: continue
+                if (lap.movingMs < 3_000) continue
+                val hr = lap.avgHr?.let { " · ♥ $it" } ?: ""
+                val up = if (lap.ascentM >= 1) "\n↑ ${Format.height(lap.ascentM)}" else ""
+                show(getString(R.string.climb_label, lap.number).uppercase(), Format.duration(lap.movingMs) + hr + up, Tone.LAP)
+            }
         }
     }
 
@@ -287,6 +335,7 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
     override fun onLocationChanged(location: Location) {
         val e = engine ?: return
         if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_M) return
+        if (Build.VERSION.SDK_INT >= 34) calibrateAltitude(location)
         track.add(location.latitude, location.longitude)
         route?.let { followRoute(it, location) }
         val prev = lastGood
@@ -335,6 +384,37 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         }
     }
 
+    /**
+     * The barometer gives good relative heights but its absolute value drifts with the weather:
+     * offset it by the average gap to the first [CALIB_FIXES] good GPS altitudes.
+     * GPS reports height above the ellipsoid, so this needs Android 14's sea-level converter
+     * (disk I/O, hence the worker thread); on older systems the standard-atmosphere value stays.
+     */
+    @RequiresApi(34)
+    private fun calibrateAltitude(location: Location) {
+        val baro = baroAlt ?: return
+        val executor = altExecutor ?: return
+        if (calibPending || calibOffsets.size >= CALIB_FIXES) return
+        if (!location.hasAltitude() || !location.hasVerticalAccuracy() ||
+            location.verticalAccuracyMeters > CALIB_MAX_VERTICAL_ACCURACY_M
+        ) return
+        calibPending = true
+        val fix = Location(location)
+        executor.execute {
+            val msl = runCatching {
+                if (!fix.hasMslAltitude()) AltitudeConverter().addMslAltitudeToLocation(this, fix)
+                fix.mslAltitudeMeters
+            }.getOrNull()
+            handler.post {
+                calibPending = false
+                val e = engine ?: return@post
+                if (msl == null) return@post
+                calibOffsets += msl - baro
+                if (calibOffsets.size == CALIB_FIXES) e.setAltitudeOffset(calibOffsets.average())
+            }
+        }
+    }
+
     @Deprecated("Required for API 30 compatibility")
     override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) = Unit
     override fun onProviderEnabled(provider: String) = Unit
@@ -350,6 +430,19 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
                 if (bpm in 30..230) e.onHeartRate(now, bpm)
             }
             Sensor.TYPE_STEP_COUNTER -> e.onSteps(now, event.values[0].toLong())
+            Sensor.TYPE_PRESSURE -> {
+                // Exponential smoothing with a time constant, whatever the sensor rate.
+                val hpa = event.values[0]
+                if (!hpa.isFinite() || hpa !in 300f..1100f) return
+                baroSeenMs = now
+                val alt = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, hpa).toDouble()
+                val prev = baroAlt
+                baroAlt = if (prev == null) alt else {
+                    val dt = ((event.timestamp - baroNanos) / 1e9).coerceIn(0.0, 10.0)
+                    prev + (alt - prev) * (1 - exp(-dt / BARO_TAU_S))
+                }
+                baroNanos = event.timestamp
+            }
         }
     }
 

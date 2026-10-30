@@ -35,6 +35,20 @@ object Format {
         return String.format(locale, "%.2f km", meters / 1000).replace("${sep}00 km", " km")
     }
 
+    /** "58" km/h from m/s, "--" when unknown. */
+    fun kmh(mps: Double?): String = if (mps == null) "--" else (mps * 3.6).roundToInt().toString()
+
+    /** Heights stay in metres: "1234 m". */
+    fun height(m: Double?): String = if (m == null) "--" else "${m.roundToInt()} m"
+
+    /** Vertical speed "+420" / "−130" (m/h). */
+    fun vspeed(mPerH: Int?): String = when {
+        mPerH == null -> "--"
+        mPerH > 0 -> "+$mPerH"
+        mPerH < 0 -> "−${-mPerH}"
+        else -> "0"
+    }
+
     /** "+0:42" ahead / "−1:05" behind. */
     fun ahead(sec: Int): String = (if (sec >= 0) "+" else "−") + duration(kotlin.math.abs(sec) * 1000L)
 

@@ -135,16 +135,24 @@ fun DataField.render(live: WorkoutSession.Live): Pair<String, Color> {
  * Sizes are in design dp (see [fit]); values longer than "10:35" shrink to stay inside the cell.
  */
 @Composable
-fun FieldGrid(live: WorkoutSession.Live, fields: List<DataField>, valueSize: Float = 30f, cellWidth: Float = 104f) {
+fun FieldGrid(live: WorkoutSession.Live, fields: List<DataField>, valueSize: Float = 30f, cellWidth: Float = 104f) =
+    ValueGrid(fields.map { f -> f.render(live).let { (v, c) -> Cell(stringResource(f.short), v, c) } }, valueSize, cellWidth)
+
+/** One labelled value of a [ValueGrid]. */
+data class Cell(val label: String, val value: String, val color: Color = Color.White)
+
+/** The [FieldGrid] layout for fixed values (ski, climbing and hiking pages). */
+@Composable
+fun ValueGrid(cells: List<Cell>, valueSize: Float = 30f, cellWidth: Float = 104f) {
     val width = fitDp(cellWidth)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Hairline(width * 1.8f)
-        fields.chunked(2).forEachIndexed { row, pair ->
+        cells.chunked(2).forEachIndexed { row, pair ->
             if (row > 0) Hairline(width * 2)
             Row(Modifier.height(fitDp(valueSize * 1.1f + 14f)), verticalAlignment = Alignment.CenterVertically) {
-                FieldCell(live, pair[0], valueSize, width)
+                FieldCell(pair[0], valueSize, width)
                 Box(Modifier.width(1.dp).fillMaxHeight(0.8f).background(Hair))
-                pair.getOrNull(1)?.let { FieldCell(live, it, valueSize, width) }
+                pair.getOrNull(1)?.let { FieldCell(it, valueSize, width) }
             }
         }
     }
@@ -158,11 +166,10 @@ private fun Hairline(width: Dp) {
 }
 
 @Composable
-private fun FieldCell(live: WorkoutSession.Live, field: DataField, valueSize: Float, width: Dp) {
-    val (value, color) = field.render(live)
+private fun FieldCell(cell: Cell, valueSize: Float, width: Dp) {
     Column(Modifier.width(width), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(stringResource(field.short), color = Muted, fontSize = fit(10f), fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, maxLines = 1)
-        BigText(value, fit(if (value.length > 5) valueSize * 0.78f else valueSize), color)
+        Text(cell.label, color = Muted, fontSize = fit(10f), fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, maxLines = 1)
+        BigText(cell.value, fit(if (cell.value.length > 5) valueSize * 0.78f else valueSize), cell.color)
     }
 }
 

@@ -3,6 +3,7 @@ package dev.watchstrava.engine
 import dev.watchstrava.model.Format
 import dev.watchstrava.model.Plan
 import dev.watchstrava.model.Race
+import dev.watchstrava.model.Sport
 import dev.watchstrava.model.Step
 import dev.watchstrava.model.StepKind
 import dev.watchstrava.model.StepLength
@@ -14,7 +15,14 @@ import kotlin.math.roundToInt
 enum class TargetStatus { NONE, OK, TOO_FAST, TOO_SLOW, HR_LOW, HR_HIGH }
 
 /** Words for lap labels, supplied by the caller so the engine needs no Android resources. */
-class LapLabels(val lap: (number: Int) -> String, val step: (StepKind) -> String)
+class LapLabels(
+    val lap: (number: Int) -> String,
+    val step: (StepKind) -> String,
+    /** Ski run ("Discesa 3"). */
+    val run: (number: Int) -> String = lap,
+    /** Climbing route ("Via 3"). */
+    val climb: (number: Int) -> String = lap,
+)
 
 data class Lap(
     val number: Int,
@@ -23,6 +31,10 @@ data class Lap(
     val distanceM: Double,
     val avgHr: Int?,
     val maxHr: Int?,
+    val ascentM: Double = 0.0,
+    /** For a ski run: the vertical drop from its top to its lowest point. */
+    val descentM: Double = 0.0,
+    val maxSpeedMps: Double = 0.0,
 ) {
     val pace: Int? get() = Format.paceOf(distanceM, movingMs)
 }
@@ -37,8 +49,17 @@ data class Summary(
     val avgCadence: Int?,
     val zoneMs: List<Long>,
     val laps: List<Lap>,
+    val sport: Sport = Sport.RUN,
+    val ascentM: Double = 0.0,
+    val descentM: Double = 0.0,
+    val maxAltitudeM: Double? = null,
+    val maxSpeedMps: Double = 0.0,
 ) {
     val pace: Int? get() = Format.paceOf(distanceM, movingMs)
+    /** Ski: time and distance on runs; climbing: time on routes (laps are only runs/routes there). */
+    val lapsMs: Long get() = laps.sumOf { it.movingMs }
+    val lapsDistanceM: Double get() = laps.sumOf { it.distanceM }
+    val longestLapMs: Long get() = laps.maxOfOrNull { it.movingMs } ?: 0L
 }
 
 data class Snapshot(
@@ -72,6 +93,22 @@ data class Snapshot(
     /** Seconds ahead (+) or behind (−) the middle of the pace target in this step. */
     val aheadSec: Int?,
     val race: RaceStatus? = null,
+    val sport: Sport = Sport.RUN,
+    /** Barometric altitude (calibrated to GPS when possible); null without a barometer. */
+    val altitudeM: Double? = null,
+    val ascentM: Double = 0.0,
+    val descentM: Double = 0.0,
+    /** m/h, + going up; null until enough altitude samples. */
+    val verticalSpeed: Int? = null,
+    val speedMps: Double? = null,
+    val maxSpeedMps: Double = 0.0,
+    /** Ski: a run is in progress; climbing: on a route. */
+    val active: Boolean = false,
+    /** Climbing: time in the current state (route or rest). */
+    val stateMs: Long = 0,
+    /** Completed ski runs / climbing routes. */
+    val runs: Int = 0,
+    val lastLap: Lap? = null,
 )
 
 data class RaceStatus(
@@ -105,6 +142,10 @@ class WorkoutEngine(
         data object PlanDone : Event
         data class AutoPaused(val paused: Boolean) : Event
         data class RaceFinished(val movingMs: Long, val aheadSec: Int?) : Event
+        /** A ski run was detected and closed (it is also the newest lap). */
+        data class RunDone(val lap: Lap) : Event
+        /** Climbing state changed by GIRO; [lap] is the route just finished. */
+        data class ClimbToggled(val climbing: Boolean, val lap: Lap?) : Event
     }
 
     companion object {
@@ -118,6 +159,21 @@ class WorkoutEngine(
         private const val ALERT_REPEAT_MS = 30_000L
         private const val CADENCE_WINDOW_MS = 15_000L
         private const val RACE_ESTIMATE_AFTER_M = 200.0
+        private const val MAX_PLAUSIBLE_SPEED = 45.0 // m/s; faster is a GPS glitch
+
+        // Altitude
+        const val ALT_HYSTERESIS_M = 3.0 // smaller wobbles are not ascent/descent
+        private const val VSPEED_WINDOW_MS = 60_000L
+        private const val VSPEED_MIN_SPAN_MS = 20_000L
+        private const val ALT_STALE_MS = 10_000L
+
+        // Ski run detection
+        const val SKI_START_SPEED = 10 / 3.6 // m/s
+        const val SKI_START_DROP_M = 15.0 // below the highest point since the last run
+        const val SKI_LIFT_CLIMB_M = 20.0 // above the lowest point of the run: on a lift
+        const val SKI_STILL_SPEED = 1.0 // m/s
+        const val SKI_STILL_MS = 180_000L
+        const val SKI_MIN_DROP_M = 30.0 // shorter "runs" (lift dips, bumps) are dropped
     }
 
     private var started = false
@@ -159,6 +215,42 @@ class WorkoutEngine(
     private var lapHrMax = 0
     private var nextAutoLapM = plan.autoLapMeters.toDouble()
     private var raceFinishMs: Long? = null
+    private var lapAscent0 = 0.0
+    private var lapDescent0 = 0.0
+    private var lapMaxSpeed = 0.0
+    private var maxSpeed = 0.0
+    /** Events raised by sensor callbacks, delivered by the next [tick]. */
+    private val pending = mutableListOf<Event>()
+
+    // Altitude, in the barometer's frame; [altOffset] only shifts what is shown.
+    private var altitude: Double? = null
+    private var altMs = 0L
+    private var altOffset = 0.0
+    private var altRef: Double? = null
+    private var ascentM = 0.0
+    private var descentM = 0.0
+    private var maxAlt: Double? = null
+    private val altSamples = ArrayDeque<Pair<Long, Double>>()
+
+    // Ski: highest point since the last run, then the current run.
+    private var onRun = false
+    private var peakAlt: Double? = null
+    private var peakMs = 0L
+    private var peakM = 0.0
+    private var peakSpeed = 0.0
+    private var runTopAlt = 0.0
+    private var runMinAlt = 0.0
+    private var runMinMs = 0L
+    private var runMinM = 0.0
+    private var runMaxSpeed = 0.0
+    private var stillMs = 0L
+    private var stillStartMs = 0L
+    private var stillStartM = 0.0
+
+    // Climbing
+    private var climbing = false
+    private var stateStartMs = 0L
+    private var lastToggleMs = -10_000L
 
     private val currentStep: Step? get() = plan.steps.getOrNull(stepIndex)
     private val planDone get() = plan.structured && stepIndex >= plan.steps.size
@@ -177,12 +269,44 @@ class WorkoutEngine(
 
     /** [deltaM] = distance since the previous accepted fix, [speedMps] = current GPS speed. */
     fun onLocation(now: Long, deltaM: Double, speedMps: Double) {
-        if (!started) return
+        if (!started || speedMps > MAX_PLAUSIBLE_SPEED) return // GPS glitch
         if (!isPaused) distanceM += deltaM
-        speed = speed?.let { it * 0.7 + speedMps * 0.3 } ?: speedMps
+        val v = speed?.let { it * 0.7 + speedMps * 0.3 } ?: speedMps
+        speed = v
         rawSpeed = speedMps
         lastFixMs = now
         hadFix = true
+        if (!isPaused && v <= MAX_PLAUSIBLE_SPEED) {
+            maxSpeed = maxOf(maxSpeed, v)
+            lapMaxSpeed = maxOf(lapMaxSpeed, v)
+            if (onRun) runMaxSpeed = maxOf(runMaxSpeed, v) else peakSpeed = maxOf(peakSpeed, v)
+        }
+    }
+
+    /** Smoothed barometric altitude, about once per second. */
+    fun onAltitude(now: Long, meters: Double) {
+        if (!started) return
+        altitude = meters
+        altMs = now
+        maxAlt = maxOf(maxAlt ?: meters, meters)
+        altSamples.addLast(now to meters)
+        while (altSamples.size > 2 && now - altSamples.first().first > VSPEED_WINDOW_MS) altSamples.removeFirst()
+        if (isPaused) {
+            altRef = meters
+            return
+        }
+        val ref = altRef ?: meters
+        when {
+            meters - ref >= ALT_HYSTERESIS_M -> { ascentM += meters - ref; altRef = meters }
+            ref - meters >= ALT_HYSTERESIS_M -> { descentM += ref - meters; altRef = meters }
+            else -> altRef = ref
+        }
+        if (plan.sport == Sport.SKI) skiAltitude(meters)
+    }
+
+    /** Barometer-to-real altitude offset, e.g. from the first GPS fixes; never counts as ascent. */
+    fun setAltitudeOffset(meters: Double) {
+        altOffset = meters
     }
 
     fun onHeartRate(now: Long, bpm: Int) {
@@ -206,9 +330,11 @@ class WorkoutEngine(
         slowMs = 0
     }
 
-    /** GIRO: next step in a structured plan, otherwise a manual lap. */
+    /** GIRO: next step in a structured plan, climbing ↔ resting, nothing in ski, otherwise a manual lap. */
     fun lap(): List<Event> {
         if (!started) return emptyList()
+        if (plan.sport == Sport.SKI) return emptyList()
+        if (plan.sport.isClimb) return listOfNotNull(toggleClimb())
         if (plan.structured && !planDone) return advance()
         nextAutoLapM = distanceM + plan.autoLapMeters
         return listOf(Event.LapDone(closeLap(lapLabel()), auto = false))
@@ -216,7 +342,8 @@ class WorkoutEngine(
 
     fun tick(now: Long): List<Event> {
         if (!started) return emptyList()
-        val events = mutableListOf<Event>()
+        val events = pending.toMutableList()
+        pending.clear()
         val dt = (now - lastTickMs).coerceIn(0, 5_000)
         lastTickMs = now
         val fixStale = now - lastFixMs > FIX_STALE_MS
@@ -238,6 +365,20 @@ class WorkoutEngine(
             }
         }
         if (isPaused) return events
+
+        // Ski: standing still for a while ends the run where the stop began.
+        if (onRun) {
+            val v = speed
+            if (v != null && v < SKI_STILL_SPEED) {
+                if (stillMs == 0L) { stillStartMs = movingMs; stillStartM = distanceM }
+                stillMs += dt
+                if (stillMs >= SKI_STILL_MS) endRun(stillStartMs, stillStartM)
+            } else if (v != null) {
+                stillMs = 0
+            }
+            events += pending
+            pending.clear()
+        }
 
         movingMs += dt
         currentHr(now)?.let { bpm ->
@@ -301,7 +442,12 @@ class WorkoutEngine(
     }
 
     fun finish(): Summary {
-        if (movingMs - lapStartMs >= 1_000) closeLap(lapLabel())
+        // Ski and climbing laps are only runs/routes: close one only if it is in progress.
+        when {
+            plan.sport == Sport.SKI -> if (onRun) endRun(movingMs, distanceM)
+            plan.sport.isClimb -> if (climbing && movingMs - lapStartMs >= 1_000) closeLap(labels.climb(laps.size + 1))
+            movingMs - lapStartMs >= 1_000 -> closeLap(lapLabel())
+        }
         return Summary(
             startedAt = startedAt,
             name = plan.name,
@@ -312,6 +458,11 @@ class WorkoutEngine(
             avgCadence = if (cadenceN > 0) (cadenceSum / cadenceN).toInt() else null,
             zoneMs = zoneMs.toList(),
             laps = laps.toList(),
+            sport = plan.sport,
+            ascentM = ascentM,
+            descentM = descentM,
+            maxAltitudeM = maxAlt?.plus(altOffset),
+            maxSpeedMps = maxSpeed,
         )
     }
 
@@ -361,7 +512,112 @@ class WorkoutEngine(
             targetStatus = targetStatus(now),
             aheadSec = ahead,
             race = plan.race?.let(::raceStatus),
+            sport = plan.sport,
+            altitudeM = altitude?.plus(altOffset),
+            ascentM = ascentM,
+            descentM = descentM,
+            verticalSpeed = verticalSpeed(now),
+            speedMps = speed,
+            maxSpeedMps = maxSpeed,
+            active = onRun || climbing,
+            stateMs = movingMs - stateStartMs,
+            runs = laps.size,
+            lastLap = laps.lastOrNull(),
         )
+    }
+
+    // --- Altitude, ski, climbing -------------------------------------------
+
+    /** Least-squares slope of the last minute of altitude, in m/h. */
+    private fun verticalSpeed(now: Long): Int? {
+        if (altSamples.size < 2 || now - altMs > ALT_STALE_MS) return null
+        val t0 = altSamples.first().first
+        if (altSamples.last().first - t0 < VSPEED_MIN_SPAN_MS) return null
+        val n = altSamples.size
+        val mt = altSamples.sumOf { (it.first - t0).toDouble() } / n
+        val ma = altSamples.sumOf { it.second } / n
+        var num = 0.0
+        var den = 0.0
+        for ((t, a) in altSamples) {
+            val dt = t - t0 - mt
+            num += dt * (a - ma)
+            den += dt * dt
+        }
+        return if (den > 0) (num / den * 3_600_000).roundToInt() else null
+    }
+
+    /**
+     * A run starts when, moving faster than [SKI_START_SPEED], the altitude is [SKI_START_DROP_M]
+     * below the highest point since the last run (the run is dated from that point).
+     * It ends at its lowest point once [SKI_LIFT_CLIMB_M] higher (a lift), or after [SKI_STILL_MS] still.
+     */
+    private fun skiAltitude(alt: Double) {
+        if (!onRun) {
+            val peak = peakAlt
+            if (peak == null || alt >= peak) {
+                setPeak(alt)
+            } else if (peak - alt >= SKI_START_DROP_M && (speed ?: 0.0) >= SKI_START_SPEED) {
+                onRun = true
+                runTopAlt = peak
+                runMinAlt = alt
+                runMinMs = movingMs
+                runMinM = distanceM
+                runMaxSpeed = peakSpeed
+                stillMs = 0
+                beginLap(peakMs, peakM)
+            }
+            return
+        }
+        if (alt < runMinAlt) {
+            runMinAlt = alt
+            runMinMs = movingMs
+            runMinM = distanceM
+        }
+        if (alt - runMinAlt >= SKI_LIFT_CLIMB_M) endRun(runMinMs, runMinM)
+    }
+
+    private fun setPeak(alt: Double?) {
+        peakAlt = alt
+        peakMs = movingMs
+        peakM = distanceM
+        peakSpeed = 0.0
+    }
+
+    private fun endRun(endMs: Long, endM: Double) {
+        onRun = false
+        stillMs = 0
+        val drop = runTopAlt - runMinAlt
+        if (drop >= SKI_MIN_DROP_M) {
+            val lap = closeLap(labels.run(laps.size + 1), endMs, endM, ascent = 0.0, descent = drop, topSpeed = runMaxSpeed)
+            pending += Event.RunDone(lap)
+        }
+        setPeak(altitude)
+    }
+
+    private fun toggleClimb(): Event? {
+        if (isPaused || movingMs - lastToggleMs < 1_000) return null
+        lastToggleMs = movingMs
+        climbing = !climbing
+        stateStartMs = movingMs
+        if (climbing) {
+            beginLap(movingMs, distanceM)
+            return Event.ClimbToggled(true, null)
+        }
+        // A route under 3 s is an accidental double tap: back to resting, nothing counted.
+        if (movingMs - lapStartMs < 3_000) return Event.ClimbToggled(false, null)
+        return Event.ClimbToggled(false, closeLap(labels.climb(laps.size + 1)))
+    }
+
+    /** Starts lap accumulation at an earlier point (ski runs are dated from their top). */
+    private fun beginLap(startMs: Long, startM: Double) {
+        lapStartMs = startMs
+        lapStartM = startM
+        lapHrSum = 0
+        lapHrN = 0
+        lapHrMax = 0
+        lapAscent0 = ascentM
+        lapDescent0 = descentM
+        lapMaxSpeed = 0.0
     }
 
     private fun raceStatus(race: Race): RaceStatus {
@@ -417,21 +673,27 @@ class WorkoutEngine(
         }
     }
 
-    private fun closeLap(label: String): Lap {
+    private fun closeLap(
+        label: String,
+        endMs: Long = movingMs,
+        endM: Double = distanceM,
+        ascent: Double = ascentM - lapAscent0,
+        descent: Double = descentM - lapDescent0,
+        topSpeed: Double = lapMaxSpeed,
+    ): Lap {
         val lap = Lap(
             number = laps.size + 1,
             label = label,
-            movingMs = movingMs - lapStartMs,
-            distanceM = distanceM - lapStartM,
+            movingMs = endMs - lapStartMs,
+            distanceM = endM - lapStartM,
             avgHr = if (lapHrN > 0) (lapHrSum / lapHrN).toInt() else null,
             maxHr = lapHrMax.takeIf { it > 0 },
+            ascentM = ascent,
+            descentM = descent,
+            maxSpeedMps = topSpeed,
         )
         laps += lap
-        lapStartMs = movingMs
-        lapStartM = distanceM
-        lapHrSum = 0
-        lapHrN = 0
-        lapHrMax = 0
+        beginLap(movingMs, distanceM)
         return lap
     }
 

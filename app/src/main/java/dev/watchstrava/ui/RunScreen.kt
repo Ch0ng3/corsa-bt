@@ -48,7 +48,9 @@ import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.Text
 import dev.watchstrava.R
+import dev.watchstrava.engine.Snapshot
 import dev.watchstrava.model.Format
+import dev.watchstrava.model.Sport
 import dev.watchstrava.model.StepLength
 import dev.watchstrava.model.TrackFit
 import dev.watchstrava.model.TrackPoint
@@ -83,13 +85,16 @@ fun RunScreen(live: WorkoutSession.Live, banner: WorkoutSession.Banner?, prefs: 
             when (pages[index]) {
                 Page.CONTROLS -> ControlsPage(live, command)
                 Page.MAIN -> when {
+                    live.plan.sport == Sport.SKI -> SkiPage(live)
+                    live.plan.sport.isClimb -> ClimbPage(live)
+                    live.plan.sport == Sport.HIKE -> HikePage(live)
                     live.sensorOnly -> SensorPage(live)
                     s.step != null -> StepPage(live, prefs)
                     s.race != null -> RacePage(live, prefs)
                     else -> FreePage(live, prefs)
                 }
                 Page.MAP -> MapPage(live)
-                Page.LAP -> LapPage(live)
+                Page.LAP -> if (live.plan.sport == Sport.SKI || live.plan.sport.isClimb) LastLapPage(live) else LapPage(live)
                 Page.ZONE -> ZonePage(live)
                 Page.TOTALS -> TotalsPage(live)
             }
@@ -235,6 +240,107 @@ private fun RacePage(live: WorkoutSession.Live, prefs: RunPrefs) {
     }
 }
 
+/** HR and zone name as the bottom line, coloured by zone. */
+@Composable
+private fun HrStatus(s: Snapshot) =
+    StatusText(s.heartRate?.let { "♥ $it · ${zoneLabel(s.zone)}" } ?: "♥ --", zoneColor(s.zone))
+
+/** Ski: big speed, state line on top (run number while descending), four day totals, HR. */
+@Composable
+private fun SkiPage(live: WorkoutSession.Live) {
+    val s = live.snapshot
+    Column(
+        Modifier.fillMaxSize().padding(top = fitDp(26f)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            if (s.active) stringResource(R.string.ski_on_run, s.runs + 1) else stringResource(R.string.ski_off_run),
+            color = if (s.active) Accent else Muted, fontSize = fit(13f), fontWeight = FontWeight.Bold, maxLines = 1,
+        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            BigText(Format.kmh(s.speedMps), fit(48f), if (s.active) Accent else Color.White)
+            Text(" km/h", fontSize = fit(13f), color = Muted, modifier = Modifier.padding(bottom = fitDp(6f)))
+        }
+        Spacer(Modifier.height(fitDp(2f)))
+        ValueGrid(
+            listOf(
+                Cell(stringResource(R.string.field_max_speed_short), Format.kmh(s.maxSpeedMps)),
+                Cell(stringResource(R.string.field_altitude_short), Format.height(s.altitudeM)),
+                Cell(stringResource(R.string.field_runs_short), "${s.runs}", Accent),
+                Cell(stringResource(R.string.field_descent_short), Format.height(s.descentM)),
+            ),
+            valueSize = 28f,
+        )
+        Spacer(Modifier.height(fitDp(3f)))
+        if (!s.gpsOk) GpsWarning(live) else HrStatus(s)
+    }
+}
+
+/** Climbing: state and its timer, then routes, total time and HR (outdoor: altitude and ascent). */
+@Composable
+private fun ClimbPage(live: WorkoutSession.Live) {
+    val s = live.snapshot
+    val color = if (s.active) Accent else Easy
+    val outdoor = live.plan.sport == Sport.CLIMB_OUTDOOR
+    Column(
+        Modifier.fillMaxSize().padding(top = fitDp(26f)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            stringResource(if (s.active) R.string.climb_on_route else R.string.climb_rest),
+            color = color, fontSize = fit(15f), fontWeight = FontWeight.Black, letterSpacing = 1.sp, maxLines = 1,
+        )
+        BigText(Format.duration(s.stateMs), fit(44f), color)
+        Spacer(Modifier.height(fitDp(2f)))
+        val top = listOf(
+            Cell(stringResource(R.string.field_routes_short), "${s.runs}", Accent),
+            Cell(stringResource(R.string.field_total_short), Format.duration(s.movingMs)),
+        )
+        val bottom = if (outdoor) listOf(
+            Cell(stringResource(R.string.field_altitude_short), Format.height(s.altitudeM)),
+            Cell(stringResource(R.string.field_ascent_short), Format.height(s.ascentM)),
+        ) else listOf(
+            Cell(stringResource(R.string.field_hr_short), s.heartRate?.toString() ?: "--", zoneColor(s.zone)),
+            Cell(stringResource(R.string.field_avg_hr_short), s.avgHr?.toString() ?: "--"),
+        )
+        ValueGrid(top + bottom, valueSize = 28f)
+        Spacer(Modifier.height(fitDp(3f)))
+        if (outdoor) HrStatus(s) else ZoneBar(s.zone)
+    }
+}
+
+/** Hiking: time and km, then altitude, vertical speed, ascent and descent; HR at the bottom. */
+@Composable
+private fun HikePage(live: WorkoutSession.Live) {
+    val s = live.snapshot
+    Column(
+        Modifier.fillMaxSize().padding(top = fitDp(19f)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        BigText(Format.duration(s.movingMs), fit(36f))
+        Row(verticalAlignment = Alignment.Bottom) {
+            BigText(Format.km(s.distanceM), fit(30f), Accent)
+            Text(" km", fontSize = fit(13f), color = Muted, modifier = Modifier.padding(bottom = fitDp(4f)))
+        }
+        Spacer(Modifier.height(fitDp(2f)))
+        ValueGrid(
+            listOf(
+                Cell(stringResource(R.string.field_altitude_short), Format.height(s.altitudeM)),
+                Cell(stringResource(R.string.field_vspeed_short), Format.vspeed(s.verticalSpeed)),
+                Cell(stringResource(R.string.field_ascent_short), Format.height(s.ascentM)),
+                Cell(stringResource(R.string.field_descent_short), Format.height(s.descentM)),
+            ),
+            valueSize = 28f,
+        )
+        Spacer(Modifier.height(fitDp(3f)))
+        when {
+            !live.useGps || !s.gpsOk -> GpsWarning(live)
+            live.offRoute -> StatusText(stringResource(R.string.off_route), Warn)
+            else -> HrStatus(s)
+        }
+    }
+}
+
 @Composable
 private fun SensorPage(live: WorkoutSession.Live) {
     val s = live.snapshot
@@ -315,8 +421,13 @@ private fun MapPage(live: WorkoutSession.Live) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(Format.km(s.distanceM), color = Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(" km  ", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
-                Text(Format.pace(s.pace), color = statusColor(s.targetStatus), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(" /km", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
+                if (s.sport == Sport.SKI) {
+                    Text(Format.kmh(s.speedMps), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(" km/h", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
+                } else {
+                    Text(Format.pace(s.pace), color = statusColor(s.targetStatus), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(" /km", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
+                }
             }
             if (track.isNotEmpty()) {
                 Box(Modifier.width(barDp).height(2.dp).background(Color.White))
@@ -348,6 +459,38 @@ private fun LapPage(live: WorkoutSession.Live) {
     }
 }
 
+/** Ski / climbing: the last completed run or route (the current one is on the main page). */
+@Composable
+private fun LastLapPage(live: WorkoutSession.Live) {
+    val s = live.snapshot
+    val ski = s.sport == Sport.SKI
+    val lap = s.lastLap
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (lap == null) {
+            Text(stringResource(if (ski) R.string.no_runs_yet else R.string.no_routes_yet), color = Muted, fontSize = 14.sp)
+            return@Column
+        }
+        Text(
+            stringResource(if (ski) R.string.last_run else R.string.last_route) + " · ${lap.number}",
+            color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+        )
+        if (ski) {
+            Text("↓ ${Format.height(lap.descentM)}", fontSize = 36.sp, fontWeight = FontWeight.Bold)
+            Metric(Format.kmh(lap.maxSpeedMps), stringResource(R.string.field_max_speed_short), Color.White, 22.sp)
+            Text("${Format.duration(lap.movingMs)} · ${Format.meters(lap.distanceM)}", fontSize = 18.sp)
+        } else {
+            Text(Format.duration(lap.movingMs), fontSize = 40.sp, fontWeight = FontWeight.Bold)
+            if (lap.ascentM >= 1) Text("↑ ${Format.height(lap.ascentM)}", fontSize = 20.sp)
+        }
+        Spacer(Modifier.height(4.dp))
+        Metric("${lap.avgHr ?: "--"} / ${lap.maxHr ?: "--"}", "♥", Muted, 18.sp)
+    }
+}
+
 @Composable
 private fun ZonePage(live: WorkoutSession.Live) {
     val s = live.snapshot
@@ -374,10 +517,15 @@ private fun TotalsPage(live: WorkoutSession.Live) {
     ) {
         Text(clockNow(), fontSize = 16.sp, color = Muted)
         TotalRow(stringResource(R.string.time), Format.duration(s.movingMs))
-        TotalRow(stringResource(R.string.distance), "${Format.km(s.distanceM)} km")
-        TotalRow(stringResource(R.string.avg_pace), Format.pace(s.avgPace))
+        if (live.useGps) TotalRow(stringResource(R.string.distance), "${Format.km(s.distanceM)} km")
+        if (s.sport == Sport.RUN) {
+            TotalRow(stringResource(R.string.avg_pace), Format.pace(s.avgPace))
+        } else {
+            TotalRow(stringResource(R.string.ascent), Format.height(s.ascentM))
+            TotalRow(stringResource(R.string.descent), Format.height(s.descentM))
+        }
         TotalRow(stringResource(R.string.avg_hr), s.avgHr?.toString() ?: "--")
-        TotalRow(stringResource(R.string.cadence), s.cadence?.let { stringResource(R.string.fmt_spm, it) } ?: "--")
+        if (s.sport == Sport.RUN) TotalRow(stringResource(R.string.cadence), s.cadence?.let { stringResource(R.string.fmt_spm, it) } ?: "--")
         Spacer(Modifier.height(4.dp))
         if (live.useGps) Text(stringResource(if (s.gpsOk) R.string.gps_ok else R.string.gps_missing), color = if (s.gpsOk) Good else Warn, fontSize = 11.sp)
         BleStatus(live)
@@ -404,7 +552,14 @@ private fun ControlsPage(live: WorkoutSession.Live, command: (RunCommand) -> Uni
         } else {
             ControlChip(stringResource(R.string.pause), Warn, Color.Black) { command(RunCommand.PAUSE) }
         }
-        ControlChip(stringResource(if (s.step != null) R.string.next_step_button else R.string.lap), Surface) { command(RunCommand.LAP) }
+        // Ski runs are automatic: no lap button.
+        val lapLabel = when {
+            s.sport == Sport.SKI -> null
+            s.sport.isClimb -> if (s.active) R.string.climb_end else R.string.climb_start
+            s.step != null -> R.string.next_step_button
+            else -> R.string.lap
+        }
+        lapLabel?.let { ControlChip(stringResource(it), if (s.sport.isClimb && !s.active) Accent else Surface) { command(RunCommand.LAP) } }
         ControlChip(stringResource(if (confirmStop) R.string.tap_to_end else R.string.end), Bad) {
             if (confirmStop) command(RunCommand.STOP) else confirmStop = true
         }

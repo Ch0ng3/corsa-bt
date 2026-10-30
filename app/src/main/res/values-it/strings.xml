@@ -10,6 +10,8 @@
 
     <!-- Lap labels saved in history -->
     <string name="lap_label">Giro %d</string>
+    <string name="run_label">Discesa %d</string>
+    <string name="climb_label">Via %d</string>
 
     <!-- HR zones -->
     <string name="zone_rest">Riposo</string>
@@ -69,6 +71,12 @@
     <string name="plan_intervals">Ripetute</string>
     <string name="home_intervals_desc">Riscaldamento, N × veloce + recupero</string>
     <string name="home_fartlek_desc">Cambi di ritmo a tempo o liberi</string>
+    <string name="home_ski">Sci</string>
+    <string name="home_ski_desc">Discese automatiche, velocità</string>
+    <string name="home_climb">Arrampicata</string>
+    <string name="home_climb_desc">Vie e riposi, indoor o fuori</string>
+    <string name="home_hike">Trekking</string>
+    <string name="home_hike_desc">Quota, dislivello, percorso GPX</string>
     <string name="home_sensor">Solo sensore cardio</string>
     <string name="home_sensor_desc">Battito a Strava, senza GPS</string>
     <string name="home_history">Storico</string>
@@ -132,6 +140,19 @@
     <string name="fartlek_free_note">Corri libero e premi GIRO (o il tasto fisico) a ogni cambio di ritmo: ogni tratto diventa un giro con passo e battito.</string>
     <string name="plan_fartlek_free">Fartlek libero</string>
 
+    <!-- Setup: ski, climbing, hiking -->
+    <string name="ski_note">Le discese vengono riconosciute da velocità e quota: le risalite in seggiovia non contano. Le discese sono automatiche: il tasto LAP non fa nulla. Niente pausa automatica né giri al km.</string>
+    <string name="no_barometer">Questo orologio non ha il barometro: niente quota</string>
+    <string name="climb_where">Dove</string>
+    <string name="climb_indoor">In palestra</string>
+    <string name="climb_outdoor">All\'aperto</string>
+    <string name="climb_note">Premi GIRO (o il tasto fisico) a inizio e fine di ogni via: ogni salita viene salvata con tempo e battito.</string>
+    <string name="climb_indoor_note">Senza GPS: solo battito e tempo.</string>
+    <string name="climb_outdoor_note">GPS e quota: dislivello di ogni via.</string>
+    <string name="plan_climb_indoor">Arrampicata in palestra</string>
+    <string name="plan_climb_outdoor">Arrampicata all\'aperto</string>
+    <string name="hike_note">Quota, dislivello e velocità verticale dal barometro.</string>
+
     <!-- Setup: sensor only -->
     <string name="sensor_title">Solo sensore</string>
     <string name="sensor_note">L\'orologio trasmette solo il battito. Su iPhone: Strava → Registra → Sensori → Aggiungi.</string>
@@ -171,6 +192,18 @@
     <string name="avg_cadence">Cadenza media</string>
     <string name="time_in_zone">Tempo in zona</string>
     <string name="laps">Giri</string>
+    <string name="runs">Discese</string>
+    <string name="routes">Vie</string>
+    <string name="fmt_runs">Discese: %d</string>
+    <string name="fmt_routes">Vie: %d</string>
+    <string name="max_speed">Velocità max</string>
+    <string name="runs_distance">Distanza in discesa</string>
+    <string name="time_on_routes">In via</string>
+    <string name="time_resting">Riposo</string>
+    <string name="longest_climb">Via più lunga</string>
+    <string name="ascent">Dislivello +</string>
+    <string name="descent">Dislivello −</string>
+    <string name="max_altitude">Quota max</string>
 
     <!-- Run screen -->
     <string name="auto_paused">PAUSA AUTO</string>
@@ -202,6 +235,22 @@
     <string name="iphone_connected">iPhone collegato</string>
     <string name="waiting_iphone">Battito: in attesa di iPhone</string>
     <string name="route_left">%s km rimanenti</string>
+    <string name="field_altitude_short">QUOTA</string>
+    <string name="field_runs_short">DISCESE</string>
+    <string name="field_descent_short">↓ DISLIV.</string>
+    <string name="field_ascent_short">↑ DISLIV.</string>
+    <string name="field_routes_short">VIE</string>
+    <string name="field_total_short">TOTALE</string>
+    <string name="ski_on_run">▼ DISCESA %d</string>
+    <string name="ski_off_run">SCI · RISALITA / PAUSA</string>
+    <string name="climb_on_route">IN VIA</string>
+    <string name="climb_rest">RIPOSO</string>
+    <string name="climb_start">Inizio via</string>
+    <string name="climb_end">Fine via</string>
+    <string name="last_run">ULTIMA DISCESA</string>
+    <string name="last_route">ULTIMA VIA</string>
+    <string name="no_runs_yet">Nessuna discesa</string>
+    <string name="no_routes_yet">Nessuna via</string>
 
     <!-- Workout service -->
     <string name="vs_goal">%s sull\'obiettivo</string>

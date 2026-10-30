@@ -1,5 +1,7 @@
 package dev.watchstrava.ui
 
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +29,7 @@ import dev.watchstrava.engine.Summary
 import dev.watchstrava.model.Format
 import dev.watchstrava.model.Plan
 import dev.watchstrava.model.Route
+import dev.watchstrava.model.Sport
 import dev.watchstrava.model.StepKind
 import dev.watchstrava.model.StepLength
 import dev.watchstrava.model.Target
@@ -43,6 +46,9 @@ fun HomeScreen(settings: Settings, onOpen: (String) -> Unit) = ScreenList(initia
     item { LogoHeader(settings.runnerName.takeIf { settings.showName && it.isNotBlank() }) }
     item { MenuChip(stringResource(R.string.plan_free), stringResource(R.string.home_free_desc), Accent) { onOpen("free") } }
     item { MenuChip(stringResource(R.string.home_race), stringResource(R.string.home_race_desc)) { onOpen("race") } }
+    item { MenuChip(stringResource(R.string.home_ski), stringResource(R.string.home_ski_desc)) { onOpen("ski") } }
+    item { MenuChip(stringResource(R.string.home_climb), stringResource(R.string.home_climb_desc)) { onOpen("climb") } }
+    item { MenuChip(stringResource(R.string.home_hike), stringResource(R.string.home_hike_desc)) { onOpen("hike") } }
     item { MenuChip(stringResource(R.string.plan_intervals), stringResource(R.string.home_intervals_desc)) { onOpen("intervals") } }
     item { MenuChip(stringResource(R.string.plan_fartlek), stringResource(R.string.home_fartlek_desc)) { onOpen("fartlek") } }
     item { MenuChip(stringResource(R.string.home_sensor), stringResource(R.string.home_sensor_desc)) { onOpen("sensor") } }
@@ -310,6 +316,54 @@ fun FartlekSetup(settings: Settings, onStart: (Plan) -> Unit) {
     }
 }
 
+// --- Ski, climbing, hiking ---------------------------------------------------
+
+@Composable
+private fun hasBarometer(): Boolean {
+    val context = LocalContext.current
+    return remember { context.getSystemService(SensorManager::class.java)?.getDefaultSensor(Sensor.TYPE_PRESSURE) != null }
+}
+
+@Composable
+fun SkiSetup(onStart: (Plan) -> Unit) {
+    val name = stringResource(R.string.home_ski)
+    val barometer = hasBarometer()
+    ScreenList {
+        header(R.string.home_ski)
+        note(R.string.ski_note)
+        if (!barometer) note(R.string.no_barometer)
+        item { StartChip { onStart(Plan.ski(name)) } }
+    }
+}
+
+@Composable
+fun ClimbSetup(settings: Settings, onStart: (Plan) -> Unit) {
+    val where = rememberPref(settings, "climb_where", 0) // 0 indoor, 1 outdoor
+    val outdoor = where.value == 1
+    val name = stringResource(if (outdoor) R.string.plan_climb_outdoor else R.string.plan_climb_indoor)
+    ScreenList {
+        header(R.string.home_climb)
+        item { ChoiceRow(stringResource(R.string.climb_where), listOf(stringResource(R.string.climb_indoor), stringResource(R.string.climb_outdoor)), where) }
+        note(R.string.climb_note)
+        note(if (outdoor) R.string.climb_outdoor_note else R.string.climb_indoor_note)
+        item { StartChip { onStart(Plan.climb(outdoor, name)) } }
+    }
+}
+
+@Composable
+fun HikeSetup(settings: Settings, onStart: (Plan, Route?) -> Unit) {
+    val route = rememberRoute(settings, "hike_route")
+    val name = stringResource(R.string.home_hike)
+    val barometer = hasBarometer()
+    ScreenList {
+        header(R.string.home_hike)
+        routeItems(route, showLength = true)
+        note(if (barometer) R.string.hike_note else R.string.no_barometer)
+        note(if (settings.autoLap) R.string.free_autolap_on else R.string.free_autolap_off)
+        item { StartChip { onStart(Plan.hike(if (settings.autoLap) 1000 else 0, name), route?.selected) } }
+    }
+}
+
 // --- Sensor only -----------------------------------------------------------
 
 @Composable
@@ -398,8 +452,13 @@ fun HistoryScreen(history: History, onOpen: (Long) -> Unit) {
         if (items.isEmpty()) note(R.string.history_empty)
         items.forEach { s: Summary ->
             item {
+                val headline = when {
+                    s.sport == Sport.SKI -> stringResource(R.string.fmt_runs, s.laps.size)
+                    s.sport.isClimb -> stringResource(R.string.fmt_routes, s.laps.size)
+                    else -> "${Format.km(s.distanceM)} km"
+                }
                 MenuChip(
-                    "${Format.km(s.distanceM)} km · ${Format.duration(s.movingMs)}",
+                    "$headline · ${Format.duration(s.movingMs)}",
                     "${s.name} · ${formatDate(s.startedAt)}",
                 ) { onOpen(s.startedAt) }
             }

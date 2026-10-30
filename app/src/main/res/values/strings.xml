@@ -16,6 +16,9 @@
     <string name="plan_fartlek" translatable="false">Fartlek</string>
     <string name="ok" translatable="false">OK</string>
     <string name="gps_ok" translatable="false">GPS ok</string>
+    <string name="fmt_max_kmh" translatable="false">max %s km/h</string>
+    <string name="field_max_speed_short" translatable="false">MAX KM/H</string>
+    <string name="field_vspeed_short" translatable="false">VERT. m/h</string>
 
     <!-- Step kinds -->
     <string name="step_warmup">Warm-up</string>
@@ -28,6 +31,8 @@
 
     <!-- Lap labels saved in history -->
     <string name="lap_label">Lap %d</string>
+    <string name="run_label">Run %d</string>
+    <string name="climb_label">Route %d</string>
 
     <!-- HR zones -->
     <string name="zone_rest">Rest</string>
@@ -88,6 +93,12 @@
     <string name="plan_intervals">Intervals</string>
     <string name="home_intervals_desc">Warm-up, N × fast + recovery</string>
     <string name="home_fartlek_desc">Timed or free pace changes</string>
+    <string name="home_ski">Ski</string>
+    <string name="home_ski_desc">Auto runs, speed, descent</string>
+    <string name="home_climb">Climbing</string>
+    <string name="home_climb_desc">Routes and rests, in or out</string>
+    <string name="home_hike">Hiking</string>
+    <string name="home_hike_desc">Altitude, ascent, GPX route</string>
     <string name="home_sensor">HR sensor only</string>
     <string name="home_sensor_desc">HR to Strava, no GPS</string>
     <string name="home_history">History</string>
@@ -151,6 +162,19 @@
     <string name="fartlek_free_note">Run freely and press LAP (or the physical button) at each pace change: each stretch becomes a lap with pace and HR.</string>
     <string name="plan_fartlek_free">Free fartlek</string>
 
+    <!-- Setup: ski, climbing, hiking -->
+    <string name="ski_note">Runs are detected from speed and altitude: lifts simply don\'t count. Runs are automatic: the LAP/stem key does nothing here. No auto pause, no km laps.</string>
+    <string name="no_barometer">This watch has no barometer: no altitude</string>
+    <string name="climb_where">Where</string>
+    <string name="climb_indoor">Indoor (gym)</string>
+    <string name="climb_outdoor">Outdoor</string>
+    <string name="climb_note">Press LAP (or the physical button) at the start and end of each route: every climb is saved with its time and HR.</string>
+    <string name="climb_indoor_note">No GPS: heart rate and time only.</string>
+    <string name="climb_outdoor_note">GPS and altitude: ascent of each route.</string>
+    <string name="plan_climb_indoor">Indoor climbing</string>
+    <string name="plan_climb_outdoor">Outdoor climbing</string>
+    <string name="hike_note">Altitude, ascent/descent and vertical speed from the barometer.</string>
+
     <!-- Setup: sensor only -->
     <string name="sensor_title">Sensor only</string>
     <string name="sensor_note">The watch only broadcasts HR. On iPhone: Strava → Record → Sensors → Add.</string>
@@ -190,6 +214,18 @@
     <string name="avg_cadence">Avg cadence</string>
     <string name="time_in_zone">Time in zone</string>
     <string name="laps">Laps</string>
+    <string name="runs">Runs</string>
+    <string name="routes">Routes</string>
+    <string name="fmt_runs">Runs: %d</string>
+    <string name="fmt_routes">Routes: %d</string>
+    <string name="max_speed">Max speed</string>
+    <string name="runs_distance">Distance on runs</string>
+    <string name="time_on_routes">On routes</string>
+    <string name="time_resting">Resting</string>
+    <string name="longest_climb">Longest climb</string>
+    <string name="ascent">Ascent</string>
+    <string name="descent">Descent</string>
+    <string name="max_altitude">Max altitude</string>
 
     <!-- Run screen -->
     <string name="auto_paused">AUTO PAUSE</string>
@@ -221,6 +257,22 @@
     <string name="iphone_connected">iPhone connected</string>
     <string name="waiting_iphone">HR: waiting for iPhone</string>
     <string name="route_left">%s km to go</string>
+    <string name="field_altitude_short">ALTITUDE</string>
+    <string name="field_runs_short">RUNS</string>
+    <string name="field_descent_short">↓ DESCENT</string>
+    <string name="field_ascent_short">↑ ASCENT</string>
+    <string name="field_routes_short">ROUTES</string>
+    <string name="field_total_short">TOTAL</string>
+    <string name="ski_on_run">▼ RUN %d</string>
+    <string name="ski_off_run">SKI · LIFT / BREAK</string>
+    <string name="climb_on_route">ON ROUTE</string>
+    <string name="climb_rest">REST</string>
+    <string name="climb_start">Start climb</string>
+    <string name="climb_end">End climb</string>
+    <string name="last_run">LAST RUN</string>
+    <string name="last_route">LAST ROUTE</string>
+    <string name="no_runs_yet">No runs yet</string>
+    <string name="no_routes_yet">No routes yet</string>
 
     <!-- Workout service -->
     <string name="vs_goal">%s vs goal</string>

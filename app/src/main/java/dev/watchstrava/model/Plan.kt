@@ -39,6 +39,13 @@ data class Step(
 /** A race over a fixed distance with an optional finish-time goal ([goalSec] 0 = none). */
 data class Race(val meters: Int, val goalSec: Int)
 
+/** Activity type; stored by name in history, so entries may be added but never renamed. */
+enum class Sport {
+    RUN, SKI, CLIMB_INDOOR, CLIMB_OUTDOOR, HIKE;
+
+    val isClimb get() = this == CLIMB_INDOOR || this == CLIMB_OUTDOOR
+}
+
 /**
  * A structured plan advances through [steps] (GIRO skips to the next step);
  * a free plan has a single open step and GIRO just marks a lap.
@@ -49,6 +56,7 @@ data class Plan(
     val structured: Boolean,
     val autoLapMeters: Int = 0,
     val race: Race? = null,
+    val sport: Sport = Sport.RUN,
 ) {
     companion object {
         /** Warm-up/cool-down minutes: 0 = none, [UNTIL_LAP] = until GIRO is pressed. */
@@ -56,6 +64,19 @@ data class Plan(
 
         fun free(target: Target = Target.None, autoLapMeters: Int = 1000, name: String = "") =
             Plan(name, listOf(Step(StepKind.RUN, StepLength.Open, target)), structured = false, autoLapMeters)
+
+        /** Ski day: runs are detected from speed and altitude, no km laps. */
+        fun ski(name: String = "") =
+            Plan(name, listOf(Step(StepKind.RUN, StepLength.Open)), structured = false, sport = Sport.SKI)
+
+        /** Climbing: GIRO toggles climbing ↔ resting, each climb is a lap. */
+        fun climb(outdoor: Boolean, name: String = "") = Plan(
+            name, listOf(Step(StepKind.RUN, StepLength.Open)), structured = false,
+            sport = if (outdoor) Sport.CLIMB_OUTDOOR else Sport.CLIMB_INDOOR,
+        )
+
+        fun hike(autoLapMeters: Int = 1000, name: String = "") =
+            Plan(name, listOf(Step(StepKind.RUN, StepLength.Open)), structured = false, autoLapMeters, sport = Sport.HIKE)
 
         /** A free run with km splits plus race progress toward [meters]. */
         fun race(name: String, meters: Int, goalSec: Int): Plan {

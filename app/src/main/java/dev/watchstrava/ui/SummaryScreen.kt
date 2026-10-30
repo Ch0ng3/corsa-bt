@@ -24,6 +24,7 @@ import androidx.wear.compose.material.Text
 import dev.watchstrava.R
 import dev.watchstrava.engine.Summary
 import dev.watchstrava.model.Format
+import dev.watchstrava.model.Sport
 
 @Composable
 fun SummaryScreen(summary: Summary, onDone: () -> Unit) = ScreenList {
@@ -42,24 +43,56 @@ fun HistoryDetail(summary: Summary, onDelete: () -> Unit) = ScreenList {
 }
 
 fun ScalingLazyListScope.summaryItems(s: Summary) {
+    val ski = s.sport == Sport.SKI
+    val climb = s.sport.isClimb
     item {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(Format.km(s.distanceM), fontSize = 40.sp, fontWeight = FontWeight.Bold)
-            Text("km", color = Muted, fontSize = 12.sp)
+            when {
+                ski || climb -> {
+                    Text("${s.laps.size}", fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(if (ski) R.string.runs else R.string.routes), color = Muted, fontSize = 12.sp)
+                }
+                else -> {
+                    Text(Format.km(s.distanceM), fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                    Text("km", color = Muted, fontSize = 12.sp)
+                }
+            }
         }
     }
     item { StatRow(stringResource(R.string.time), Format.duration(s.movingMs)) }
-    item { StatRow(stringResource(R.string.avg_pace), "${Format.pace(s.pace)} /km") }
+    when {
+        ski -> {
+            item { StatRow(stringResource(R.string.descent), Format.height(s.descentM)) }
+            item { StatRow(stringResource(R.string.max_speed), "${Format.kmh(s.maxSpeedMps)} km/h") }
+            item { StatRow(stringResource(R.string.runs_distance), Format.meters(s.lapsDistanceM)) }
+        }
+        climb -> {
+            item { StatRow(stringResource(R.string.time_on_routes), Format.duration(s.lapsMs)) }
+            item { StatRow(stringResource(R.string.time_resting), Format.duration(s.movingMs - s.lapsMs)) }
+            item { StatRow(stringResource(R.string.longest_climb), Format.duration(s.longestLapMs)) }
+            if (s.sport == Sport.CLIMB_OUTDOOR) item { StatRow(stringResource(R.string.ascent), Format.height(s.ascentM)) }
+        }
+        else -> {
+            item { StatRow(stringResource(R.string.avg_pace), "${Format.pace(s.pace)} /km") }
+            // Runs only show the climb when a barometer measured some.
+            if (s.sport == Sport.HIKE || s.ascentM + s.descentM > 0) {
+                item { StatRow(stringResource(R.string.ascent), Format.height(s.ascentM)) }
+                item { StatRow(stringResource(R.string.descent), Format.height(s.descentM)) }
+            }
+            if (s.sport == Sport.HIKE) item { StatRow(stringResource(R.string.max_altitude), Format.height(s.maxAltitudeM)) }
+        }
+    }
     s.avgHr?.let { item { StatRow(stringResource(R.string.avg_max_hr), "$it / ${s.maxHr ?: "--"}") } }
-    s.avgCadence?.let { item { StatRow(stringResource(R.string.avg_cadence), stringResource(R.string.fmt_spm, it)) } }
+    if (s.sport == Sport.RUN) s.avgCadence?.let { item { StatRow(stringResource(R.string.avg_cadence), stringResource(R.string.fmt_spm, it)) } }
 
     val totalZone = s.zoneMs.drop(1).sum()
     if (totalZone > 0) {
         item { Text(stringResource(R.string.time_in_zone), color = Muted, fontSize = 12.sp) }
         for (z in 5 downTo 1) item { ZoneBar(z, s.zoneMs[z], totalZone) }
     }
-    if (s.laps.size > 1) {
-        item { Text(stringResource(R.string.laps), color = Muted, fontSize = 12.sp) }
+    // Ski runs and climbing routes are worth listing even when there is only one.
+    if (s.laps.size > 1 || (ski || climb) && s.laps.isNotEmpty()) {
+        item { Text(stringResource(if (ski) R.string.runs else if (climb) R.string.routes else R.string.laps), color = Muted, fontSize = 12.sp) }
         s.laps.forEach { lap ->
             item {
                 Column(
@@ -70,9 +103,13 @@ fun ScalingLazyListScope.summaryItems(s: Summary) {
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
                     Text("${lap.number}. ${lap.label}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    val hr = lap.avgHr?.let { " · ♥$it" } ?: ""
                     Text(
-                        "${Format.meters(lap.distanceM)} · ${Format.duration(lap.movingMs)} · ${Format.pace(lap.pace)}" +
-                            (lap.avgHr?.let { " · ♥$it" } ?: ""),
+                        when {
+                            ski -> "↓ ${Format.height(lap.descentM)} · ${Format.kmh(lap.maxSpeedMps)} km/h · ${Format.duration(lap.movingMs)}$hr"
+                            climb -> Format.duration(lap.movingMs) + hr + if (lap.ascentM >= 1) " · ↑ ${Format.height(lap.ascentM)}" else ""
+                            else -> "${Format.meters(lap.distanceM)} · ${Format.duration(lap.movingMs)} · ${Format.pace(lap.pace)}$hr"
+                        },
                         fontSize = 12.sp, color = Muted,
                     )
                 }

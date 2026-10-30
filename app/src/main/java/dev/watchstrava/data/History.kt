@@ -3,6 +3,7 @@ package dev.watchstrava.data
 import android.content.Context
 import dev.watchstrava.engine.Lap
 import dev.watchstrava.engine.Summary
+import dev.watchstrava.model.Sport
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -38,6 +39,11 @@ class History(context: Context) {
         .putOpt("maxHr", s.maxHr)
         .putOpt("avgCadence", s.avgCadence)
         .put("zoneMs", JSONArray(s.zoneMs))
+        .put("sport", s.sport.name)
+        .put("ascentM", s.ascentM)
+        .put("descentM", s.descentM)
+        .putOpt("maxAltitudeM", s.maxAltitudeM)
+        .put("maxSpeedMps", s.maxSpeedMps)
         .put("laps", JSONArray(s.laps.map { lap ->
             JSONObject()
                 .put("number", lap.number)
@@ -46,6 +52,9 @@ class History(context: Context) {
                 .put("distanceM", lap.distanceM)
                 .putOpt("avgHr", lap.avgHr)
                 .putOpt("maxHr", lap.maxHr)
+                .put("ascentM", lap.ascentM)
+                .put("descentM", lap.descentM)
+                .put("maxSpeedMps", lap.maxSpeedMps)
         }))
 
     private fun fromJson(j: JSONObject): Summary {
@@ -69,8 +78,17 @@ class History(context: Context) {
                     distanceM = l.getDouble("distanceM"),
                     avgHr = l.optIntOrNull("avgHr"),
                     maxHr = l.optIntOrNull("maxHr"),
+                    ascentM = l.optDouble("ascentM", 0.0),
+                    descentM = l.optDouble("descentM", 0.0),
+                    maxSpeedMps = l.optDouble("maxSpeedMps", 0.0),
                 )
             },
+            // Workouts saved before 2.2 have none of these: they were runs.
+            sport = Sport.entries.firstOrNull { it.name == j.optString("sport") } ?: Sport.RUN,
+            ascentM = j.optDouble("ascentM", 0.0),
+            descentM = j.optDouble("descentM", 0.0),
+            maxAltitudeM = if (j.has("maxAltitudeM") && !j.isNull("maxAltitudeM")) j.getDouble("maxAltitudeM") else null,
+            maxSpeedMps = j.optDouble("maxSpeedMps", 0.0),
         )
     }
 

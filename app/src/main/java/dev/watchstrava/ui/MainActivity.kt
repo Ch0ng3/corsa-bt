@@ -25,6 +25,7 @@ import dev.watchstrava.data.Routes
 import dev.watchstrava.data.Settings
 import dev.watchstrava.model.Plan
 import dev.watchstrava.model.Route
+import dev.watchstrava.model.Sport
 import dev.watchstrava.service.WorkoutService
 import dev.watchstrava.service.WorkoutSession
 
@@ -149,6 +150,9 @@ private fun NavGraph(settings: Settings, history: History, startWorkout: (Plan, 
         composable("race") { RaceSetup(settings, runRoute) }
         composable("intervals") { IntervalsSetup(settings, run) }
         composable("fartlek") { FartlekSetup(settings, run) }
+        composable("ski") { SkiSetup(run) }
+        composable("climb") { ClimbSetup(settings) { startWorkout(it, it.sport == Sport.CLIMB_OUTDOOR, null) } }
+        composable("hike") { HikeSetup(settings, runRoute) }
         composable("sensor") { SensorSetup { startWorkout(it, false, null) } }
         composable("settings") { SettingsScreen(settings) }
         composable("history") { HistoryScreen(history) { nav.navigate("history/$it") } }
