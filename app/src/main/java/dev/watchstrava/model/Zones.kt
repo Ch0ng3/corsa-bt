@@ -1,8 +1,14 @@
 package dev.watchstrava.model
 
+import dev.watchstrava.R
+
 /** Heart-rate zones as % of max HR (Garmin default: Z1 50–60 … Z5 90–100). */
 object Zones {
-    val names = listOf("Riposo", "Recupero", "Base", "Aerobico", "Soglia", "Massimo")
+    /** String resources for the zone names, index 0 = below Z1. */
+    val names = listOf(
+        R.string.zone_rest, R.string.zone_recovery, R.string.zone_base,
+        R.string.zone_aerobic, R.string.zone_threshold, R.string.zone_max,
+    )
 
     /** 0 = below Z1, 1..5 = Z1..Z5. */
     fun zoneOf(bpm: Int, maxHr: Int): Int = (5 downTo 1).firstOrNull { bpm >= lower(it, maxHr) } ?: 0

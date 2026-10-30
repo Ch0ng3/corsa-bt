@@ -14,14 +14,19 @@ class Track(private val spacingM: Double = 5.0, private val maxPoints: Int = 8_0
     private var lat0 = 0.0
     private var lon0 = 0.0
     private var mPerDegLon = 0.0
+    private var anchored = false
     private val points = ArrayList<TrackPoint>()
 
+    /** Fixes the plane's origin (e.g. a route's start) instead of using the first fix. */
+    fun anchor(lat: Double, lon: Double) {
+        lat0 = lat
+        lon0 = lon
+        mPerDegLon = M_PER_DEG_LAT * cos(Math.toRadians(lat))
+        anchored = true
+    }
+
     fun add(lat: Double, lon: Double) {
-        if (points.isEmpty()) {
-            lat0 = lat
-            lon0 = lon
-            mPerDegLon = M_PER_DEG_LAT * cos(Math.toRadians(lat))
-        }
+        if (!anchored) anchor(lat, lon)
         val p = TrackPoint(((lon - lon0) * mPerDegLon).toFloat(), ((lat - lat0) * M_PER_DEG_LAT).toFloat())
         val last = points.lastOrNull()
         if (last != null && hypot((p.x - last.x).toDouble(), (p.y - last.y).toDouble()) < spacingM) return

@@ -3,6 +3,7 @@ package dev.watchstrava.service
 import dev.watchstrava.engine.Snapshot
 import dev.watchstrava.engine.Summary
 import dev.watchstrava.model.Plan
+import dev.watchstrava.model.Route
 import dev.watchstrava.model.TrackPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -11,6 +12,7 @@ object WorkoutSession {
     /** Set by the UI right before starting the service. */
     @Volatile var pendingPlan: Plan? = null
     @Volatile var pendingUseGps = true
+    @Volatile var pendingRoute: Route? = null
 
     /** Non-null while a workout is running. */
     val live = MutableStateFlow<Live?>(null)
@@ -29,6 +31,11 @@ object WorkoutSession {
         val bleError: String?,
         /** GPS breadcrumb for the map page. */
         val track: List<TrackPoint> = emptyList(),
+        /** GPX route being followed, in the same plane as [track]; empty for none. */
+        val route: List<TrackPoint> = emptyList(),
+        val routeProgressM: Double = 0.0,
+        val routeRemainingM: Double? = null,
+        val offRoute: Boolean = false,
     )
 
     enum class Tone { LAP, STEP_WORK, STEP_EASY, ALERT, DONE, INFO }

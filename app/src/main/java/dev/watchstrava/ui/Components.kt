@@ -1,5 +1,6 @@
 package dev.watchstrava.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,6 +35,7 @@ import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.ToggleChip
+import dev.watchstrava.R
 import dev.watchstrava.data.Settings
 
 /** Standard scrolling screen: clock on top, scroll indicator, rotary-crown scrolling. */
@@ -55,9 +58,20 @@ fun ScalingLazyListScope.header(title: String, color: Color = Accent) = item {
     ListHeader { Text(title, color = color, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
 }
 
+fun ScalingLazyListScope.header(@StringRes title: Int, color: Color = Accent) = item {
+    ListHeader { Text(stringResource(title), color = color, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+}
+
 fun ScalingLazyListScope.note(text: String) = item {
     Text(
         text, color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    )
+}
+
+fun ScalingLazyListScope.note(@StringRes text: Int) = item {
+    Text(
+        stringResource(text), color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center,
         modifier = Modifier.padding(horizontal = 12.dp),
     )
 }
@@ -116,7 +130,7 @@ fun SwitchRow(label: String, checked: Boolean, secondary: String? = null, onChan
 }
 
 @Composable
-fun StartChip(label: String = "AVVIA", onClick: () -> Unit) {
+fun StartChip(label: String = stringResource(R.string.start), onClick: () -> Unit) {
     Chip(
         onClick = onClick,
         label = {

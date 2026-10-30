@@ -32,10 +32,12 @@ import androidx.wear.ongoing.Status
 import dev.watchstrava.R
 import dev.watchstrava.data.History
 import dev.watchstrava.data.Settings
+import dev.watchstrava.engine.LapLabels
 import dev.watchstrava.engine.TargetStatus
 import dev.watchstrava.engine.WorkoutEngine
 import dev.watchstrava.engine.WorkoutEngine.Event
 import dev.watchstrava.model.Format
+import dev.watchstrava.model.Route
 import dev.watchstrava.model.StepKind
 import dev.watchstrava.model.Track
 import dev.watchstrava.service.WorkoutSession.Banner
@@ -57,6 +59,10 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         private const val NOTIF_ID = 1
         private const val MAX_ACCURACY_M = 25f
         private const val BANNER_MS = 6_000L
+        private const val OFF_ROUTE_M = 40.0
+        private const val OFF_ROUTE_FIXES = 3
+        private const val BACK_ON_ROUTE_M = 25.0
+        private const val FINISH_ZONE_M = 30.0
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -67,6 +73,11 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
     private var sensorOnly = false
     private var lastGood: Location? = null
     private var track = Track()
+    private var route: Route? = null
+    private var routeProgress = 0.0
+    private var offFixes = 0
+    private var armed = false
+    private var offRoute = false
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val tick = object : Runnable {
@@ -109,6 +120,8 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
     private fun start() {
         val plan = WorkoutSession.pendingPlan ?: return
         WorkoutSession.pendingPlan = null
+        val pendingRoute = WorkoutSession.pendingRoute
+        WorkoutSession.pendingRoute = null
         sensorOnly = !WorkoutSession.pendingUseGps
         settings = Settings(this)
         useGps = WorkoutSession.pendingUseGps && granted(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -129,9 +142,16 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         }
 
         val now = SystemClock.elapsedRealtime()
-        val e = WorkoutEngine(plan, settings.maxHr, settings.autoPause && useGps)
+        // A race clock never stops on its own: aid stations count.
+        val labels = LapLabels({ getString(R.string.lap_label, it) }, { getString(it.label) })
+        val e = WorkoutEngine(plan, settings.maxHr, settings.autoPause && useGps && plan.race == null, labels)
         engine = e
-        track = Track()
+        route = pendingRoute?.takeIf { useGps }
+        track = Track().apply { route?.let { anchor(it.lat0, it.lon0) } }
+        routeProgress = 0.0
+        offFixes = 0
+        armed = false
+        offRoute = false
         lastGood = null
 
         val sm = getSystemService(SensorManager::class.java)
@@ -187,6 +207,10 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
             bleConnected = ble?.connected ?: 0,
             bleError = ble?.error,
             track = track.snapshot(),
+            route = route?.points.orEmpty(),
+            routeProgressM = routeProgress,
+            routeRemainingM = route?.let { (it.lengthM - routeProgress).coerceAtLeast(0.0) },
+            offRoute = offRoute,
         )
     }
 
@@ -201,8 +225,10 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
                 val lap = event.lap
                 if (lap.movingMs < 3_000) continue
                 val hr = lap.avgHr?.let { " · ♥ $it" } ?: ""
-                val title = if (event.auto) "KM ${lap.number}" else "GIRO ${lap.number}"
-                show(title, "${Format.pace(lap.pace)} /km · ${Format.duration(lap.movingMs)}$hr", Tone.LAP)
+                val title = getString(if (event.auto) R.string.fmt_km_n else R.string.lap_n, lap.number)
+                val ahead = engine?.snapshot(SystemClock.elapsedRealtime())?.race?.takeIf { !it.finished }?.aheadSec
+                    ?.let { "\n" + getString(R.string.vs_goal, Format.ahead(it)) } ?: ""
+                show(title, "${Format.pace(lap.pace)} /km · ${Format.duration(lap.movingMs)}$hr$ahead", Tone.LAP)
                 vibrate(longArrayOf(0, 150, 100, 150))
             }
             is Event.StepStarted -> {
@@ -210,27 +236,32 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
                 val reps = if (s.reps > 0) " ${s.rep}/${s.reps}" else ""
                 val target = Format.target(s.target, maxHr).let { if (it.isEmpty()) "" else "\n$it" }
                 val hard = s.kind == StepKind.WORK
-                show("${s.kind.label.uppercase()}$reps", Format.length(s.length) + target, if (hard) Tone.STEP_WORK else Tone.STEP_EASY)
+                show("${getString(s.kind.label).uppercase()}$reps", Format.length(s.length, getString(R.string.step_until_lap)) + target, if (hard) Tone.STEP_WORK else Tone.STEP_EASY)
                 vibrate(if (hard) longArrayOf(0, 700) else longArrayOf(0, 300, 120, 300))
             }
             is Event.Countdown -> vibrate(longArrayOf(0, 60))
             is Event.OffTarget -> {
                 val (title, detail) = when (event.status) {
-                    TargetStatus.TOO_FAST -> "RALLENTA" to "Sei più veloce del passo obiettivo"
-                    TargetStatus.TOO_SLOW -> "ACCELERA" to "Sei più lento del passo obiettivo"
-                    TargetStatus.HR_HIGH -> "BATTITI ALTI" to "Sopra la zona obiettivo"
-                    TargetStatus.HR_LOW -> "BATTITI BASSI" to "Sotto la zona obiettivo"
+                    TargetStatus.TOO_FAST -> R.string.alert_slow_down to R.string.alert_too_fast
+                    TargetStatus.TOO_SLOW -> R.string.alert_speed_up to R.string.alert_too_slow
+                    TargetStatus.HR_HIGH -> R.string.alert_hr_high to R.string.alert_above_zone
+                    TargetStatus.HR_LOW -> R.string.alert_hr_low to R.string.alert_below_zone
                     else -> continue
                 }
-                show(title, detail, Tone.ALERT)
+                show(getString(title), getString(detail), Tone.ALERT)
                 vibrate(longArrayOf(0, 100, 80, 100, 80, 100))
             }
             Event.PlanDone -> {
-                show("COMPLETATO!", "Allenamento finito.\nCorsa libera finché premi Fine", Tone.DONE)
+                show(getString(R.string.plan_done), getString(R.string.plan_done_detail), Tone.DONE)
+                vibrate(longArrayOf(0, 400, 150, 400, 150, 400))
+            }
+            is Event.RaceFinished -> {
+                val ahead = event.aheadSec?.let { "\n" + getString(R.string.vs_goal, Format.ahead(it)) } ?: ""
+                show(getString(R.string.finish_line), Format.duration(event.movingMs) + ahead, Tone.DONE)
                 vibrate(longArrayOf(0, 400, 150, 400, 150, 400))
             }
             is Event.AutoPaused -> {
-                show(if (event.paused) "PAUSA AUTO" else "RIPRESO", "", Tone.INFO)
+                show(getString(if (event.paused) R.string.auto_paused else R.string.resumed), "", Tone.INFO)
                 vibrate(longArrayOf(0, 200))
             }
         }
@@ -257,6 +288,7 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         val e = engine ?: return
         if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_M) return
         track.add(location.latitude, location.longitude)
+        route?.let { followRoute(it, location) }
         val prev = lastGood
         var delta = 0.0
         if (prev == null) {
@@ -276,6 +308,31 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
             else -> 0.0
         }
         e.onLocation(SystemClock.elapsedRealtime(), delta, speed)
+    }
+
+    /** Off route after [OFF_ROUTE_FIXES] fixes beyond [OFF_ROUTE_M]; back on below [BACK_ON_ROUTE_M]. */
+    private fun followRoute(r: Route, location: Location) {
+        val fix = r.locate(location.latitude, location.longitude, routeProgress)
+        routeProgress = fix.progressM
+        if (offRoute) {
+            if (fix.offM < BACK_ON_ROUTE_M) {
+                offRoute = false
+                offFixes = 0
+                show(getString(R.string.back_on_route), "", Tone.DONE)
+            }
+            return
+        }
+        if (!armed) {
+            armed = fix.offM < BACK_ON_ROUTE_M
+            return
+        }
+        if (fix.progressM >= r.lengthM - FINISH_ZONE_M) return
+        offFixes = if (fix.offM > OFF_ROUTE_M) offFixes + 1 else 0
+        if (offFixes >= OFF_ROUTE_FIXES) {
+            offRoute = true
+            show(getString(R.string.off_route), Format.meters(fix.offM), Tone.ALERT)
+            vibrate(longArrayOf(0, 300))
+        }
     }
 
     @Deprecated("Required for API 30 compatibility")
@@ -302,7 +359,7 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
 
     private fun startForegroundWithOngoing(title: String, types: Int) {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Allenamento", NotificationManager.IMPORTANCE_LOW))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.channel_workout), NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -311,7 +368,7 @@ class WorkoutService : Service(), SensorEventListener, LocationListener {
         val builder = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_heart)
             .setContentTitle(title)
-            .setContentText("Allenamento in corso")
+            .setContentText(getString(R.string.workout_in_progress))
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)

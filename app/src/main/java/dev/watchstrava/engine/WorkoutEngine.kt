@@ -2,7 +2,9 @@ package dev.watchstrava.engine
 
 import dev.watchstrava.model.Format
 import dev.watchstrava.model.Plan
+import dev.watchstrava.model.Race
 import dev.watchstrava.model.Step
+import dev.watchstrava.model.StepKind
 import dev.watchstrava.model.StepLength
 import dev.watchstrava.model.Target
 import dev.watchstrava.model.Zones
@@ -10,6 +12,9 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 enum class TargetStatus { NONE, OK, TOO_FAST, TOO_SLOW, HR_LOW, HR_HIGH }
+
+/** Words for lap labels, supplied by the caller so the engine needs no Android resources. */
+class LapLabels(val lap: (number: Int) -> String, val step: (StepKind) -> String)
 
 data class Lap(
     val number: Int,
@@ -66,6 +71,19 @@ data class Snapshot(
     val targetStatus: TargetStatus,
     /** Seconds ahead (+) or behind (−) the middle of the pace target in this step. */
     val aheadSec: Int?,
+    val race: RaceStatus? = null,
+)
+
+data class RaceStatus(
+    val remainingM: Double,
+    /** Finish time at the current average pace, or the real one once [finished]. */
+    val finishMs: Long?,
+    /** Seconds ahead (+) or behind (−) the goal time at this distance; null without a goal. */
+    val aheadSec: Int?,
+    /** Pace needed from here to finish on the goal time; null without a goal or when out of reach. */
+    val neededPace: Int?,
+    val progress: Float,
+    val finished: Boolean,
 )
 
 /**
@@ -76,6 +94,7 @@ class WorkoutEngine(
     val plan: Plan,
     private val maxHr: Int,
     private val autoPause: Boolean,
+    private val labels: LapLabels,
 ) {
     sealed interface Event {
         /** [fromStep] = closed by a step change of a structured plan (announced by StepStarted). */
@@ -85,6 +104,7 @@ class WorkoutEngine(
         data class OffTarget(val status: TargetStatus) : Event
         data object PlanDone : Event
         data class AutoPaused(val paused: Boolean) : Event
+        data class RaceFinished(val movingMs: Long, val aheadSec: Int?) : Event
     }
 
     companion object {
@@ -97,6 +117,7 @@ class WorkoutEngine(
         private const val ALERT_OFF_FOR_MS = 5_000L // continuously off target
         private const val ALERT_REPEAT_MS = 30_000L
         private const val CADENCE_WINDOW_MS = 15_000L
+        private const val RACE_ESTIMATE_AFTER_M = 200.0
     }
 
     private var started = false
@@ -137,6 +158,7 @@ class WorkoutEngine(
     private var lapHrN = 0
     private var lapHrMax = 0
     private var nextAutoLapM = plan.autoLapMeters.toDouble()
+    private var raceFinishMs: Long? = null
 
     private val currentStep: Step? get() = plan.steps.getOrNull(stepIndex)
     private val planDone get() = plan.structured && stepIndex >= plan.steps.size
@@ -231,6 +253,12 @@ class WorkoutEngine(
                 nextAutoLapM += plan.autoLapMeters
             }
         }
+        plan.race?.let { race ->
+            if (raceFinishMs == null && distanceM >= race.meters) {
+                raceFinishMs = movingMs
+                events += Event.RaceFinished(movingMs, raceAhead(race))
+            }
+        }
 
         val step = currentStep
         if (plan.structured && step != null) {
@@ -255,7 +283,8 @@ class WorkoutEngine(
             }
         }
 
-        val status = targetStatus(now)
+        // Slow-down / speed-up alerts only in structured workouts; free runs just colour the pace.
+        val status = if (plan.structured) targetStatus(now) else TargetStatus.NONE
         if (status == TargetStatus.NONE || status == TargetStatus.OK) {
             offSinceMs = null
         } else {
@@ -331,7 +360,33 @@ class WorkoutEngine(
             stepProgress = progress,
             targetStatus = targetStatus(now),
             aheadSec = ahead,
+            race = plan.race?.let(::raceStatus),
         )
+    }
+
+    private fun raceStatus(race: Race): RaceStatus {
+        val done = raceFinishMs
+        val remaining = (race.meters - distanceM).coerceAtLeast(0.0)
+        val needed = if (race.goalSec > 0 && done == null && remaining > 0) {
+            val left = race.goalSec - movingMs / 1000.0
+            if (left > 0) (left / (remaining / 1000)).roundToInt() else null
+        } else null
+        return RaceStatus(
+            remainingM = if (done != null) 0.0 else remaining,
+            finishMs = done ?: if (distanceM >= RACE_ESTIMATE_AFTER_M) (movingMs * race.meters / distanceM).toLong() else null,
+            aheadSec = raceAhead(race),
+            neededPace = needed,
+            progress = if (done != null) 1f else (distanceM / race.meters).toFloat().coerceIn(0f, 1f),
+            finished = done != null,
+        )
+    }
+
+    /** Goal time scaled to the distance covered minus the time taken (frozen at the finish line). */
+    private fun raceAhead(race: Race): Int? {
+        if (race.goalSec <= 0) return null
+        raceFinishMs?.let { return (race.goalSec - it / 1000.0).roundToInt() }
+        if (distanceM < RACE_ESTIMATE_AFTER_M) return null
+        return (race.goalSec * distanceM / race.meters - movingMs / 1000.0).roundToInt()
     }
 
     private fun advance(): List<Event> {
@@ -356,9 +411,9 @@ class WorkoutEngine(
     private fun lapLabel(): String {
         val step = currentStep
         return when {
-            !plan.structured || step == null -> "Giro ${laps.size + 1}"
-            step.reps > 0 -> "${step.kind.label} ${step.rep}/${step.reps}"
-            else -> step.kind.label
+            !plan.structured || step == null -> labels.lap(laps.size + 1)
+            step.reps > 0 -> "${labels.step(step.kind)} ${step.rep}/${step.reps}"
+            else -> labels.step(step.kind)
         }
     }
 

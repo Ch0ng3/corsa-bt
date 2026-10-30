@@ -5,19 +5,20 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material.Colors
 import androidx.wear.compose.material.MaterialTheme
+import dev.watchstrava.R
 import dev.watchstrava.engine.TargetStatus
 import dev.watchstrava.model.StepKind
 import dev.watchstrava.service.WorkoutSession.Tone
 
 /** Accent colours the user can pick in Impostazioni → Personalizza. */
 val Accents = listOf(
-    "Arancio" to Color(0xFFFC4C02),
-    "Azzurro" to Color(0xFF2E9BFF),
-    "Acqua" to Color(0xFF00C7BE),
-    "Lime" to Color(0xFFB4E61E),
-    "Viola" to Color(0xFFAF52DE),
-    "Rosa" to Color(0xFFFF2D78),
-    "Oro" to Color(0xFFFFC300),
+    R.string.accent_orange to Color(0xFFFC4C02),
+    R.string.accent_blue to Color(0xFF2E9BFF),
+    R.string.accent_aqua to Color(0xFF00C7BE),
+    R.string.accent_lime to Color(0xFFB4E61E),
+    R.string.accent_purple to Color(0xFFAF52DE),
+    R.string.accent_pink to Color(0xFFFF2D78),
+    R.string.accent_gold to Color(0xFFFFC300),
 )
 
 /** Selected accent; a snapshot state so changing it recolours the whole UI. */

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Corsa BT sample" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Parco Sempione loop</name></metadata>
+  <trk>
+    <name>Parco Sempione loop</name>
+    <trkseg>
+      <trkpt lat="45.476085" lon="9.176500"><ele>122</ele></trkpt>
+      <trkpt lat="45.476035" lon="9.177101"><ele>122</ele></trkpt>
+      <trkpt lat="45.475887" lon="9.177684"><ele>122</ele></trkpt>
+      <trkpt lat="45.475645" lon="9.178231"><ele>122</ele></trkpt>
+      <trkpt lat="45.475317" lon="9.178726"><ele>122</ele></trkpt>
+      <trkpt lat="45.474912" lon="9.179152"><ele>122</ele></trkpt>
+      <trkpt lat="45.474443" lon="9.179499"><ele>122</ele></trkpt>
+      <trkpt lat="45.473924" lon="9.179754"><ele>122</ele></trkpt>
+      <trkpt lat="45.473370" lon="9.179910"><ele>122</ele></trkpt>
+      <trkpt lat="45.472800" lon="9.179963"><ele>122</ele></trkpt>
+      <trkpt lat="45.472230" lon="9.179910"><ele>122</ele></trkpt>
+      <trkpt lat="45.471676" lon="9.179754"><ele>122</ele></trkpt>
+      <trkpt lat="45.471157" lon="9.179499"><ele>122</ele></trkpt>
+      <trkpt lat="45.470688" lon="9.179152"><ele>122</ele></trkpt>
+      <trkpt lat="45.470283" lon="9.178726"><ele>122</ele></trkpt>
+      <trkpt lat="45.469955" lon="9.178231"><ele>122</ele></trkpt>
+      <trkpt lat="45.469713" lon="9.177684"><ele>122</ele></trkpt>
+      <trkpt lat="45.469565" lon="9.177101"><ele>122</ele></trkpt>
+      <trkpt lat="45.469515" lon="9.176500"><ele>122</ele></trkpt>
+      <trkpt lat="45.469565" lon="9.175899"><ele>122</ele></trkpt>
+      <trkpt lat="45.469713" lon="9.175316"><ele>122</ele></trkpt>
+      <trkpt lat="45.469955" lon="9.174769"><ele>122</ele></trkpt>
+      <trkpt lat="45.470283" lon="9.174274"><ele>122</ele></trkpt>
+      <trkpt lat="45.470688" lon="9.173848"><ele>122</ele></trkpt>
+      <trkpt lat="45.471157" lon="9.173501"><ele>122</ele></trkpt>
+      <trkpt lat="45.471676" lon="9.173246"><ele>122</ele></trkpt>
+      <trkpt lat="45.472230" lon="9.173090"><ele>122</ele></trkpt>
+      <trkpt lat="45.472800" lon="9.173037"><ele>122</ele></trkpt>
+      <trkpt lat="45.473370" lon="9.173090"><ele>122</ele></trkpt>
+      <trkpt lat="45.473924" lon="9.173246"><ele>122</ele></trkpt>
+      <trkpt lat="45.474443" lon="9.173501"><ele>122</ele></trkpt>
+      <trkpt lat="45.474912" lon="9.173848"><ele>122</ele></trkpt>
+      <trkpt lat="45.475317" lon="9.174274"><ele>122</ele></trkpt>
+      <trkpt lat="45.475645" lon="9.174769"><ele>122</ele></trkpt>
+      <trkpt lat="45.475887" lon="9.175316"><ele>122</ele></trkpt>
+      <trkpt lat="45.476035" lon="9.175899"><ele>122</ele></trkpt>
+      <trkpt lat="45.476085" lon="9.176500"><ele>122</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

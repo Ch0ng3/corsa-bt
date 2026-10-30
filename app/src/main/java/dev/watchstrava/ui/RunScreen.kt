@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
@@ -46,9 +47,11 @@ import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.Text
+import dev.watchstrava.R
 import dev.watchstrava.model.Format
 import dev.watchstrava.model.StepLength
 import dev.watchstrava.model.TrackFit
+import dev.watchstrava.model.TrackPoint
 import dev.watchstrava.model.Zones
 import dev.watchstrava.service.WorkoutSession
 import kotlinx.coroutines.delay
@@ -82,6 +85,7 @@ fun RunScreen(live: WorkoutSession.Live, banner: WorkoutSession.Banner?, prefs: 
                 Page.MAIN -> when {
                     live.sensorOnly -> SensorPage(live)
                     s.step != null -> StepPage(live, prefs)
+                    s.race != null -> RacePage(live, prefs)
                     else -> FreePage(live, prefs)
                 }
                 Page.MAP -> MapPage(live)
@@ -91,10 +95,10 @@ fun RunScreen(live: WorkoutSession.Live, banner: WorkoutSession.Banner?, prefs: 
             }
         }
         PageDots(pager.currentPage, pages.size, Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
-        val top = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
+        val top = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
         if (s.paused && pager.currentPage != 0) {
             Text(
-                if (s.autoPaused) "PAUSA AUTO" else "IN PAUSA",
+                stringResource(if (s.autoPaused) R.string.auto_paused else R.string.paused),
                 color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 modifier = top
                     .clip(RoundedCornerShape(10.dp))
@@ -124,47 +128,47 @@ private fun RunHeader(name: String?, modifier: Modifier) {
 
 // --- Pages -----------------------------------------------------------------
 
+/*
+ * Main pages are laid out top-down for the round screen, in design dp (see fit()):
+ * the big numbers sit in the upper band, the 2×2 grid in the widest band, one status line at the bottom.
+ */
+
 @Composable
 private fun StepPage(live: WorkoutSession.Live, prefs: RunPrefs) {
     val s = live.snapshot
     val step = s.step ?: return
     val color = stepColor(step.kind)
     Box(Modifier.fillMaxSize()) {
-        CircularProgressIndicator(
-            progress = s.stepProgress,
-            modifier = Modifier.fillMaxSize().padding(3.dp),
-            indicatorColor = color,
-            trackColor = color.copy(alpha = 0.18f),
-            strokeWidth = 7.dp,
-        )
+        ProgressRing(s.stepProgress, color)
         Column(
-            Modifier.align(Alignment.Center).padding(top = 20.dp),
+            Modifier.fillMaxSize().padding(top = fitDp(26f)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val reps = if (step.reps > 0) " ${step.rep}/${step.reps}" else ""
-            Text(step.kind.label.uppercase() + reps, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(step.kind.label).uppercase() + reps, color = color, fontSize = fit(14f), fontWeight = FontWeight.Bold, maxLines = 1)
             val remaining = when (step.length) {
                 is StepLength.Time -> Format.duration(s.stepRemainingMs ?: 0)
                 is StepLength.Distance -> Format.meters(s.stepRemainingM ?: 0.0)
                 StepLength.Open -> Format.duration(s.stepElapsedMs)
             }
-            Text(remaining, fontSize = 38.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            BigText(remaining, fit(40f))
             val target = Format.target(step.target, live.maxHr)
-            when {
-                target.isNotEmpty() -> Text(target, color = Muted, fontSize = 11.sp)
-                step.length == StepLength.Open -> Text("premi GIRO per avanzare", color = Muted, fontSize = 11.sp)
-            }
-            Spacer(Modifier.height(3.dp))
-            FieldGrid(live, prefs.fields, valueSize = 18.sp, cellWidth = 76.dp)
+            StatusText(
+                when {
+                    target.isNotEmpty() -> target
+                    step.length == StepLength.Open -> stringResource(R.string.press_lap_to_advance)
+                    else -> ""
+                },
+            )
+            Spacer(Modifier.height(fitDp(2f)))
+            FieldGrid(live, prefs.fields, valueSize = 26f, cellWidth = 88f)
+            Spacer(Modifier.height(fitDp(3f)))
             val ahead = s.aheadSec
             when {
-                ahead != null -> Text(
-                    (if (ahead >= 0) "+" else "−") + Format.seconds(kotlin.math.abs(ahead)) + if (ahead >= 0) " avanti" else " indietro",
-                    color = if (ahead >= 0) Good else Warn, fontSize = 11.sp,
-                )
-                !live.snapshot.gpsOk -> GpsWarning(live)
+                ahead != null -> StatusText(Format.ahead(ahead) + " " + stringResource(if (ahead >= 0) R.string.ahead else R.string.behind), if (ahead >= 0) Good else Warn)
+                !s.gpsOk -> GpsWarning(live)
                 else -> s.nextStep?.let {
-                    Text("Poi: ${it.kind.label} ${Format.length(it.length)}", color = Muted, fontSize = 10.sp, maxLines = 1)
+                    StatusText(stringResource(R.string.next_step, stringResource(it.kind.label), Format.length(it.length, stringResource(R.string.step_until_lap))))
                 }
             }
         }
@@ -175,26 +179,58 @@ private fun StepPage(live: WorkoutSession.Live, prefs: RunPrefs) {
 private fun FreePage(live: WorkoutSession.Live, prefs: RunPrefs) {
     val s = live.snapshot
     Column(
-        Modifier.fillMaxSize().padding(top = 24.dp, bottom = 12.dp),
+        Modifier.fillMaxSize().padding(top = fitDp(19f)),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        if (s.planDone) Text("COMPLETATO", color = Good, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        Text(Format.duration(s.movingMs), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        BigText(Format.duration(s.movingMs), fit(38f))
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(Format.km(s.distanceM), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Accent)
-            Text(" km", fontSize = 12.sp, color = Muted, modifier = Modifier.padding(bottom = 3.dp))
+            BigText(Format.km(s.distanceM), fit(32f), Accent)
+            Text(" km", fontSize = fit(13f), color = Muted, modifier = Modifier.padding(bottom = fitDp(4f)))
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(fitDp(2f)))
         FieldGrid(live, prefs.fields)
-        Spacer(Modifier.height(5.dp))
-        ZoneBar(s.zone)
-        // One status line: GPS problems first, then the target, else the zone name.
+        Spacer(Modifier.height(fitDp(3f)))
+        // One status line: GPS problems first, then plan done / target, else the zone bar.
         val target = if (s.planDone) "" else live.plan.steps.firstOrNull()?.let { Format.target(it.target, live.maxHr) }.orEmpty()
         when {
             !live.useGps || !s.gpsOk -> GpsWarning(live)
-            target.isNotEmpty() -> Text("obiettivo $target", color = Muted, fontSize = 10.sp, maxLines = 1)
-            else -> Text(zoneLabel(s.zone), color = zoneColor(s.zone), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            s.planDone -> StatusText(stringResource(R.string.completed), Good)
+            target.isNotEmpty() -> StatusText(stringResource(R.string.target_status, target))
+            else -> ZoneBar(s.zone)
+        }
+    }
+}
+
+/** Race: ring = distance covered, then time, gap to the goal and the four race fields. */
+@Composable
+private fun RacePage(live: WorkoutSession.Live, prefs: RunPrefs) {
+    val s = live.snapshot
+    val race = s.race ?: return
+    Box(Modifier.fillMaxSize()) {
+        ProgressRing(race.progress, if (race.finished) Good else Accent)
+        Column(
+            Modifier.fillMaxSize().padding(top = fitDp(26f)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            BigText(Format.duration(s.movingMs), fit(36f))
+            val ahead = race.aheadSec
+            Row(verticalAlignment = Alignment.Bottom) {
+                if (ahead != null) {
+                    BigText(Format.ahead(ahead), fit(28f), if (ahead >= 0) Good else Warn)
+                    Text(" " + stringResource(if (ahead >= 0) R.string.ahead else R.string.behind), fontSize = fit(13f), color = Muted, modifier = Modifier.padding(bottom = fitDp(3f)))
+                } else {
+                    BigText(Format.km(s.distanceM), fit(28f), Accent)
+                    Text(" km", fontSize = fit(13f), color = Muted, modifier = Modifier.padding(bottom = fitDp(3f)))
+                }
+            }
+            Spacer(Modifier.height(fitDp(2f)))
+            FieldGrid(live, prefs.raceFields, valueSize = 26f, cellWidth = 88f)
+            Spacer(Modifier.height(fitDp(3f)))
+            when {
+                !live.useGps || !s.gpsOk -> GpsWarning(live)
+                race.finished -> StatusText(stringResource(R.string.finish_line), Good)
+                else -> StatusText(s.heartRate?.let { "♥ $it · ${zoneLabel(s.zone)}" } ?: "♥ --", zoneColor(s.zone))
+            }
         }
     }
 }
@@ -208,7 +244,7 @@ private fun SensorPage(live: WorkoutSession.Live) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(s.heartRate?.toString() ?: "--", fontSize = 60.sp, fontWeight = FontWeight.Bold, color = zoneColor(s.zone))
-        Text("bpm · Z${s.zone}", color = Muted, fontSize = 13.sp)
+        Text(stringResource(R.string.fmt_bpm_zone, s.zone), color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(4.dp))
         ZoneBar(s.zone)
         Spacer(Modifier.height(6.dp))
@@ -222,11 +258,12 @@ private fun SensorPage(live: WorkoutSession.Live) {
 private fun MapPage(live: WorkoutSession.Live) {
     val s = live.snapshot
     val track = live.track
+    val route = live.route
     val accent = Accent
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val boxPx = with(density) { maxWidth.toPx() } * 0.62f
-        val fit = remember(track) { TrackFit.of(track) }
+        val fit = remember(track, route) { TrackFit.of(if (route.isEmpty()) track else route + track) }
         val mPerPx = fit.spanM / boxPx
         val barM = TrackFit.niceScale(mPerPx * with(density) { 40.dp.toPx() })
         val barDp = with(density) { (barM / mPerPx).toDp() }
@@ -235,20 +272,24 @@ private fun MapPage(live: WorkoutSession.Live) {
             val c = center
             drawCircle(Color(0x1AFFFFFF), radius = boxPx * 0.72f, center = c, style = Stroke(1.dp.toPx()))
             drawCircle(Color(0x10FFFFFF), radius = boxPx * 0.36f, center = c, style = Stroke(1.dp.toPx()))
-            if (track.isEmpty()) return@Canvas
-            fun pos(i: Int): Offset {
-                val p = track[i]
-                return Offset(
-                    c.x + (p.x - fit.centerX) / fit.spanM * boxPx,
-                    c.y - (p.y - fit.centerY) / fit.spanM * boxPx,
-                )
+            fun pos(p: TrackPoint) = Offset(
+                c.x + (p.x - fit.centerX) / fit.spanM * boxPx,
+                c.y - (p.y - fit.centerY) / fit.spanM * boxPx,
+            )
+            fun pathOf(points: List<TrackPoint>) = Path().apply {
+                points.forEachIndexed { i, p -> pos(p).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
             }
-            val path = Path()
-            track.indices.forEach { i -> pos(i).let { if (i == 0) path.moveTo(it.x, it.y) else path.lineTo(it.x, it.y) } }
+            if (route.isNotEmpty()) {
+                drawPath(pathOf(route), Muted.copy(alpha = 0.55f), style = Stroke(7.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawCircle(Color.White, radius = 5.dp.toPx(), center = pos(route.last()), style = Stroke(2.dp.toPx()))
+                drawCircle(Good, radius = 3.5.dp.toPx(), center = pos(route.first()))
+            }
+            if (track.isEmpty()) return@Canvas
+            val path = pathOf(track)
             drawPath(path, accent.copy(alpha = 0.35f), style = Stroke(9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
             drawPath(path, accent, style = Stroke(4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawCircle(Good, radius = 4.dp.toPx(), center = pos(0))
-            val here = pos(track.lastIndex)
+            drawCircle(Good, radius = 4.dp.toPx(), center = pos(track.first()))
+            val here = pos(track.last())
             drawCircle(Color.Black, radius = 8.dp.toPx(), center = here)
             drawCircle(accent, radius = 7.dp.toPx(), center = here)
             drawCircle(Color.White, radius = 4.dp.toPx(), center = here)
@@ -260,7 +301,7 @@ private fun MapPage(live: WorkoutSession.Live) {
         )
         if (track.isEmpty()) {
             Text(
-                if (live.useGps) "In attesa del GPS…" else "GPS non autorizzato",
+                stringResource(if (live.useGps) R.string.waiting_gps else R.string.gps_denied),
                 color = Warn, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center),
             )
         }
@@ -268,6 +309,9 @@ private fun MapPage(live: WorkoutSession.Live) {
             Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            live.routeRemainingM?.let {
+                Text(stringResource(R.string.route_left, Format.km(it)), color = if (live.offRoute) Warn else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(Format.km(s.distanceM), color = Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(" km  ", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
@@ -291,16 +335,16 @@ private fun LapPage(live: WorkoutSession.Live) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            if (s.step != null) "STEP ${s.stepNumber}/${s.stepCount}" else "GIRO ${s.lapNumber}",
+            if (s.step != null) stringResource(R.string.fmt_step_of, s.stepNumber, s.stepCount) else stringResource(R.string.lap_n, s.lapNumber),
             color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
         )
         Text(Format.duration(s.lapMs), fontSize = 40.sp, fontWeight = FontWeight.Bold)
         Text(Format.meters(s.lapDistanceM), fontSize = 24.sp)
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.Bottom) {
-            Metric(Format.pace(Format.paceOf(s.lapDistanceM, s.lapMs)), "/km medio", Color.White, 22.sp)
+            Metric(Format.pace(Format.paceOf(s.lapDistanceM, s.lapMs)), stringResource(R.string.per_km_avg), Color.White, 22.sp)
         }
-        Metric(s.lapAvgHr?.toString() ?: "--", "♥ medio", Muted, 18.sp)
+        Metric(s.lapAvgHr?.toString() ?: "--", stringResource(R.string.hr_avg), Muted, 18.sp)
     }
 }
 
@@ -312,9 +356,9 @@ private fun ZonePage(live: WorkoutSession.Live) {
         ZoneGauge(bpm, live.maxHr, Modifier.fillMaxSize().padding(6.dp))
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(bpm?.toString() ?: "--", fontSize = 56.sp, fontWeight = FontWeight.Bold, color = zoneColor(s.zone))
-            Text(if (s.zone > 0) "Z${s.zone} ${Zones.names[s.zone]}" else "sotto Z1", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            bpm?.let { Text("${it * 100 / live.maxHr}% FC max", color = Muted, fontSize = 12.sp) }
-            s.avgHr?.let { Text("media $it", color = Muted, fontSize = 12.sp) }
+            Text(zoneLabel(s.zone), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            bpm?.let { Text(stringResource(R.string.pct_max_hr, it * 100 / live.maxHr), color = Muted, fontSize = 12.sp) }
+            s.avgHr?.let { Text(stringResource(R.string.avg_value, it), color = Muted, fontSize = 12.sp) }
         }
     }
 }
@@ -329,13 +373,13 @@ private fun TotalsPage(live: WorkoutSession.Live) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(clockNow(), fontSize = 16.sp, color = Muted)
-        TotalRow("Tempo", Format.duration(s.movingMs))
-        TotalRow("Distanza", "${Format.km(s.distanceM)} km")
-        TotalRow("Passo medio", Format.pace(s.avgPace))
-        TotalRow("FC media", s.avgHr?.toString() ?: "--")
-        TotalRow("Cadenza", s.cadence?.let { "$it spm" } ?: "--")
+        TotalRow(stringResource(R.string.time), Format.duration(s.movingMs))
+        TotalRow(stringResource(R.string.distance), "${Format.km(s.distanceM)} km")
+        TotalRow(stringResource(R.string.avg_pace), Format.pace(s.avgPace))
+        TotalRow(stringResource(R.string.avg_hr), s.avgHr?.toString() ?: "--")
+        TotalRow(stringResource(R.string.cadence), s.cadence?.let { stringResource(R.string.fmt_spm, it) } ?: "--")
         Spacer(Modifier.height(4.dp))
-        if (live.useGps) Text(if (s.gpsOk) "GPS ok" else "GPS assente", color = if (s.gpsOk) Good else Warn, fontSize = 11.sp)
+        if (live.useGps) Text(stringResource(if (s.gpsOk) R.string.gps_ok else R.string.gps_missing), color = if (s.gpsOk) Good else Warn, fontSize = 11.sp)
         BleStatus(live)
     }
 }
@@ -356,12 +400,12 @@ private fun ControlsPage(live: WorkoutSession.Live, command: (RunCommand) -> Uni
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
         if (s.paused) {
-            ControlChip("Riprendi", Good) { command(RunCommand.RESUME) }
+            ControlChip(stringResource(R.string.resume), Good) { command(RunCommand.RESUME) }
         } else {
-            ControlChip("Pausa", Warn, Color.Black) { command(RunCommand.PAUSE) }
+            ControlChip(stringResource(R.string.pause), Warn, Color.Black) { command(RunCommand.PAUSE) }
         }
-        ControlChip(if (s.step != null) "Step successivo" else "Giro", Surface) { command(RunCommand.LAP) }
-        ControlChip(if (confirmStop) "Tocca per finire" else "Fine", Bad) {
+        ControlChip(stringResource(if (s.step != null) R.string.next_step_button else R.string.lap), Surface) { command(RunCommand.LAP) }
+        ControlChip(stringResource(if (confirmStop) R.string.tap_to_end else R.string.end), Bad) {
             if (confirmStop) command(RunCommand.STOP) else confirmStop = true
         }
     }
@@ -388,17 +432,36 @@ private fun TotalRow(label: String, value: String) {
 @Composable
 private fun GpsWarning(live: WorkoutSession.Live) {
     when {
-        !live.useGps -> Text("GPS non autorizzato", color = Bad, fontSize = 11.sp)
-        !live.snapshot.gpsOk -> Text("Ricerca GPS…", color = Warn, fontSize = 11.sp)
+        !live.useGps -> StatusText(stringResource(R.string.gps_denied), Bad)
+        !live.snapshot.gpsOk -> StatusText(stringResource(R.string.gps_searching), Warn)
     }
+}
+
+/** The single line at the bottom of a main page. */
+@Composable
+private fun StatusText(text: String, color: Color = Muted) {
+    if (text.isEmpty()) return
+    Text(text, color = color, fontSize = fit(12f), fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center)
+}
+
+/** Thin progress ring along the bezel. */
+@Composable
+private fun ProgressRing(progress: Float, color: Color) {
+    CircularProgressIndicator(
+        progress = progress,
+        modifier = Modifier.fillMaxSize().padding(3.dp),
+        indicatorColor = color,
+        trackColor = color.copy(alpha = 0.18f),
+        strokeWidth = 7.dp,
+    )
 }
 
 @Composable
 private fun BleStatus(live: WorkoutSession.Live) {
     val (text, color) = when {
         live.bleError != null -> live.bleError to Bad
-        live.bleConnected > 0 -> "iPhone collegato" to Good
-        else -> "Battito: in attesa di iPhone" to Muted
+        live.bleConnected > 0 -> stringResource(R.string.iphone_connected) to Good
+        else -> stringResource(R.string.waiting_iphone) to Muted
     }
     Text(text, color = color, fontSize = 11.sp, textAlign = TextAlign.Center)
 }
@@ -475,7 +538,9 @@ private fun BannerOverlay(b: WorkoutSession.Banner) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-            Text(b.title, color = color, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            // Shrink long titles ("RISCALDAMENTO", "RECUPERO 2/6") so they never break mid-word.
+            Text(b.title, color = color, fontSize = fit(minOf(28f, 250f / b.title.length.coerceAtLeast(1))),
+                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
             if (b.detail.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 Text(b.detail, fontSize = 16.sp, textAlign = TextAlign.Center)

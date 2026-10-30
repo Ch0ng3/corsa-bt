@@ -17,11 +17,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
+import dev.watchstrava.R
 
 /** Heartbeat line inside an accent ring: the app mark. Coordinates are 0..1 of the inner box. */
 private val PULSE = listOf(
@@ -61,6 +63,6 @@ fun LogoHeader(name: String?) {
         LogoMark(46.dp)
         Spacer(Modifier.height(4.dp))
         Text("CORSA BT", fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
-        if (name != null) Text("Ciao, $name", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        if (name != null) Text(stringResource(R.string.greeting, name), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }

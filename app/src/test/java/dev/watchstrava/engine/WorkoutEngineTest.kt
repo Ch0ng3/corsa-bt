@@ -26,8 +26,22 @@ class WorkoutEngineTest {
         return events
     }
 
+    private val labels = LapLabels(
+        lap = { "Giro $it" },
+        step = {
+            when (it) {
+                StepKind.WARMUP -> "Riscaldamento"
+                StepKind.WORK -> "Veloce"
+                StepKind.EASY -> "Lento"
+                StepKind.RECOVERY -> "Recupero"
+                StepKind.COOLDOWN -> "Defaticamento"
+                StepKind.RUN -> "Corsa"
+            }
+        },
+    )
+
     private fun engine(plan: Plan, autoPause: Boolean = false) =
-        WorkoutEngine(plan, maxHr = 190, autoPause = autoPause).also { it.start(now) }
+        WorkoutEngine(plan, maxHr = 190, autoPause = autoPause, labels = labels).also { it.start(now) }
 
     @Test
     fun freeRunAutoLapsEveryKilometre() {
@@ -77,10 +91,14 @@ class WorkoutEngineTest {
         assertTrue(events.any { it is WorkoutEngine.Event.StepStarted && it.step.kind == StepKind.WORK })
     }
 
+    /** One long fast step with [target], so alerts can fire. */
+    private fun oneRep(target: Target) =
+        Plan.intervals(0, 1, StepLength.Distance(5000), target, StepLength.Time(60), 0)
+
     @Test
     fun paceAlertAfterGraceAndThrottled() {
         // Target 4:00–4:20 /km, running 5:00 /km (3.33 m/s): too slow.
-        val e = engine(Plan.free(Target.Pace(240, 260), autoLapMeters = 0))
+        val e = engine(oneRep(Target.Pace(240, 260)))
         val alerts = e.run(70, speed = 1000.0 / 300).filterIsInstance<WorkoutEngine.Event.OffTarget>()
         // First alert after the 15 s grace, then every 30 s: t=15 and t=45.
         assertEquals(2, alerts.size)
@@ -89,17 +107,63 @@ class WorkoutEngineTest {
 
     @Test
     fun noAlertWhenOnTarget() {
-        val e = engine(Plan.free(Target.Pace(240, 260), autoLapMeters = 0))
+        val e = engine(oneRep(Target.Pace(240, 260)))
         assertTrue(e.run(120, speed = 1000.0 / 250).none { it is WorkoutEngine.Event.OffTarget })
         assertEquals(TargetStatus.OK, e.snapshot(now).targetStatus)
     }
 
     @Test
     fun heartRateZoneTarget() {
-        val e = engine(Plan.free(Target.Zone(2), autoLapMeters = 0))
+        val e = engine(oneRep(Target.Zone(2)))
         val alerts = e.run(30, speed = 3.0, bpm = 165).filterIsInstance<WorkoutEngine.Event.OffTarget>()
         assertEquals(TargetStatus.HR_HIGH, alerts.single().status)
         assertEquals(4, e.snapshot(now).zone)
+    }
+
+    @Test
+    fun freeRunTargetColoursButNeverAlerts() {
+        val e = engine(Plan.free(Target.Pace(240, 260), autoLapMeters = 0))
+        assertTrue(e.run(120, speed = 1000.0 / 300).none { it is WorkoutEngine.Event.OffTarget })
+        assertEquals(TargetStatus.TOO_SLOW, e.snapshot(now).targetStatus)
+    }
+
+    @Test
+    fun raceProgressAndPrediction() {
+        // 10 km, goal 50:00 (5:00 /km); running 4:00 /km for 1 km.
+        val e = engine(Plan.race("10 km", 10_000, 3000))
+        val events = e.run(250, speed = 4.0)
+        assertEquals(1, events.count { it is WorkoutEngine.Event.LapDone })
+        assertTrue(events.none { it is WorkoutEngine.Event.OffTarget })
+        val r = e.snapshot(now).race!!
+        assertEquals(9000.0, r.remainingM, 0.01)
+        assertEquals(2_500_000L, r.finishMs) // 4:00 /km × 10 km
+        assertEquals(50, r.aheadSec) // 300 s planned for 1 km, took 250 s
+        assertEquals(306, r.neededPace) // 2750 s left over 9 km
+        assertEquals(0.1f, r.progress, 0.001f)
+    }
+
+    @Test
+    fun raceFinishesOnceAndFreezesResult() {
+        val e = engine(Plan.race("5 km", 5000, 1500))
+        val events = e.run(1300, speed = 4.0) // 5 km at 1250 s, then 50 s more
+        val finish = events.filterIsInstance<WorkoutEngine.Event.RaceFinished>().single()
+        assertEquals(1_250_000L, finish.movingMs)
+        assertEquals(250, finish.aheadSec)
+        val r = e.snapshot(now).race!!
+        assertTrue(r.finished)
+        assertEquals(1_250_000L, r.finishMs)
+        assertEquals(250, r.aheadSec)
+        assertNull(r.neededPace)
+    }
+
+    @Test
+    fun raceWithoutGoalHasNoDelta() {
+        val e = engine(Plan.race("Maratona", 42_195, 0))
+        e.run(100, speed = 3.0)
+        val r = e.snapshot(now).race!!
+        assertNull(r.aheadSec)
+        assertNull(r.neededPace)
+        assertTrue(r.finishMs != null)
     }
 
     @Test

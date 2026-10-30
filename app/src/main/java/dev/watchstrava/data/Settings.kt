@@ -46,4 +46,6 @@ class Settings(context: Context) {
     /** Setup-screen values, keyed per field. */
     fun int(key: String, default: Int) = sp.getInt("form_$key", default)
     fun setInt(key: String, value: Int) = sp.edit().putInt("form_$key", value).apply()
+    fun string(key: String, default: String) = sp.getString("form_$key", default) ?: default
+    fun setString(key: String, value: String) = sp.edit().putString("form_$key", value).apply()
 }

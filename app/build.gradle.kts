@@ -12,8 +12,8 @@ android {
         applicationId = "dev.watchstrava"
         minSdk = 30 // Wear OS 3+
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.0"
+        versionCode = 3
+        versionName = "2.1"
     }
 
     buildTypes {

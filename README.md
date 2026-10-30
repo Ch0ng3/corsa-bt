@@ -1,80 +1,106 @@
-# Corsa BT: computer da corsa per Xiaomi Watch 2 + Strava su iPhone
+# Corsa BT: a running computer for the Xiaomi Watch 2 + Strava on iPhone
 
-App per Wear OS. Sull'orologio vedi passo, battito, zone, ripetute e fartlek;
-in contemporanea l'orologio fa da **fascia cardio Bluetooth** per l'app Strava
-sull'iPhone, che registra GPS e percorso.
+A Wear OS app. On the watch you see pace, heart rate, zones, intervals and fartlek;
+at the same time the watch acts as a **Bluetooth heart rate sensor** for the Strava
+app on your iPhone, which records GPS and route.
+
+The app is bilingual, English and Italian, and follows the watch's system language
+(you can also pick a per-app language in Android settings, Wear OS 4+ / Android 13+).
 
 <p align="center">
   <img src="docs/screenshots/menu.png" width="200" alt="Menu">
-  <img src="docs/screenshots/corsa.png" width="200" alt="Schermata corsa">
-  <img src="docs/screenshots/percorso.png" width="200" alt="Percorso">
-  <img src="docs/screenshots/personalizza.png" width="200" alt="Personalizza">
+  <img src="docs/screenshots/corsa.png" width="200" alt="Run screen">
+  <img src="docs/screenshots/percorso.png" width="200" alt="Route">
+  <img src="docs/screenshots/personalizza.png" width="200" alt="Customize">
 </p>
 
-## Installazione veloce (senza compilare)
+## Quick install (no build required)
 
-1. Scarica `corsa-bt.apk` dall'ultima [Release](../../releases/latest).
-2. Attiva il debug wireless sull'orologio e collegati con `adb` (vedi *Compilare e installare* più sotto).
+1. Download `corsa-bt.apk` from the latest [Release](../../releases/latest).
+2. Enable wireless debugging on the watch and connect with `adb` (see *Build and install* below).
 3. `adb install -r corsa-bt.apk`
 
-## Funzioni
+## Features
 
-| Modalità | Cosa fa |
+| Mode | What it does |
 |---|---|
-| **Corsa libera** | Tempo, distanza, passo attuale/medio, battito con zona colorata. Obiettivo opzionale di passo (± tolleranza) o zona cardio con avviso a vibrazione. Giro automatico ogni km con riepilogo (passo, tempo, ♥ medio). |
-| **Ripetute** | Riscaldamento (minuti o "fino a GIRO") → N × veloce (distanza o tempo) con passo/zona obiettivo → recupero (tempo o distanza) → defaticamento. Anello di avanzamento, conto alla rovescia, "partner virtuale" (secondi avanti/indietro rispetto al passo obiettivo), anteprima dello step successivo. |
-| **Fartlek** | A tempo (N cicli veloce/lento) oppure libero: premi GIRO a ogni cambio di ritmo. |
-| **Solo sensore cardio** | Solo battito a Strava, senza GPS. |
-| **Storico** | Riepilogo di ogni allenamento: tempo in zona, giri/ripetute con passo e battito. |
+| **Free run** | Time, distance, current/average pace, heart rate with a colored zone. Optional pace target (± tolerance) or heart rate zone target: the value is colored when you are off target, with no vibration. Automatic lap every km with a summary (pace, time, average ♥). |
+| **Race** | 5K, 10K, half marathon, marathon or a custom distance. Set a goal finish time or average pace (each updates the other), or no goal. The main race screen shows elapsed time and ahead/behind vs goal (after 200 m) on top, plus 4 customizable fields (default: Pace, Km left, Finish ETA, Needed pace). A ring around the screen shows distance progress. Km splits every km (the lap banner also shows ahead/behind). Auto-pause is disabled in races. At the finish line a "FINISH!" banner and vibration show your final time and the delta to your goal. The finish is detected from the watch's GPS distance, which typically reads 0.5-2% long, so FINISH! may trigger slightly before the real line: keep running until you cross it and press **End**. |
+| **Intervals** | Warm-up (minutes or "until LAP") → N × fast (distance or time) with a target pace/zone → recovery (time or distance) → cool-down. Progress ring, countdown, "virtual partner" (seconds ahead/behind the target pace), preview of the next step. |
+| **Fartlek** | Timed (N fast/slow cycles) or free: press LAP at every change of pace. |
+| **HR sensor only** | Heart rate only to Strava, no GPS. |
+| **History** | Summary of every workout: time in zone, laps/intervals with pace and heart rate. |
 
-Durante l'allenamento scorri orizzontalmente fra le pagine:
-**Controlli** (Pausa / Giro / Fine) ← **Principale** → Percorso → Giro → Zona cardio → Totali (cadenza, stato GPS e iPhone).
-In alto su ogni pagina: il tuo nome e l'ora.
-Il **tasto fisico inferiore** fa GIRO, se l'orologio lo consente.
+**Vibration alerts:** slow down / speed up and HR high / HR low alerts work only in Intervals and timed Fartlek. In Free run and Race there are no pace or HR alerts: the vibrations are km splits, auto pause/resume, the finish line and off-route.
 
-- **Principale**: tempo, km, 4 campi personalizzabili (di base passo attuale, battito,
-  media del giro, media totale) e barra delle zone cardio.
-- **Percorso**: traccia GPS disegnata dal vivo, nord in alto, zoom automatico e scala.
-  Non c'è la mappa stradale sotto (l'orologio non ha connessione durante la corsa).
+During a workout, swipe horizontally between pages:
+**Controls** (Pause / Lap or Next step / End) ← **Main** → Route → Lap → Heart rate zone → Totals (cadence, GPS and iPhone status).
+At the top of every page: your name and the time.
+The **lower physical button** does LAP, if the watch allows it.
 
-**Personalizza** (dal menu): colore dell'app, nome sì/no, scelta dei 4 campi della pagina principale.
+- **Main**: time, km, 4 customizable fields (default: current pace, heart rate,
+  lap average, overall average) and the heart rate zone bar. The layout is designed
+  to make better use of the round screen, with larger time, distance and values.
+- **Route**: GPS track drawn live, north up, automatic zoom and scale.
+  There is no street map underneath (the watch has no connection during the run).
 
-Impostazioni: FC massima (zone Garmin 50/60/70/80/90 %), giro automatico, pausa automatica,
-battito all'iPhone, schermo sempre acceso, vibrazione.
+**Customize** (from the menu): app color, name on/off, choice of the 4 fields on the main page ("Main run screen"), plus a separate set of 4 slots for the race screen ("Main race screen").
 
-## Uso con Strava (iPhone)
+Settings: **Max HR** (Garmin zones 50/60/70/80/90 %), **Auto lap 1 km**, **Auto pause**,
+**HR to iPhone**, **Screen on**, **Vibration**.
 
-1. Orologio: scegli l'allenamento → **AVVIA** (concedi i permessi la prima volta).
-2. iPhone: Strava → **Registra** → pannello sensori → **Aggiungi un sensore** → l'orologio.
-   Serve farlo solo la prima volta; poi Strava lo ricollega da solo.
-3. Avvia l'attività su Strava. A fine corsa: **Fine** sull'orologio e salva su Strava.
+## Routes (GPX)
 
-Strava dal sensore prende **solo il battito**; percorso, distanza e passo li registra l'iPhone.
-Le metriche sull'orologio usano il GPS dell'orologio, quindi possono differire di poco da Strava.
+Free run and Race can follow a course loaded from a GPX file (no connection needed during the run).
 
-## Compilare e installare
+1. Get a GPX: e.g. on Strava open a route → **Export GPX** (any GPX with a track or route works).
+2. Copy it to the watch (the folder is created the first time the app opens):
+   ```
+   adb push my-route.gpx /sdcard/Android/data/dev.watchstrava/files/routes/
+   ```
+   A test file is in `docs/sample-route.gpx` (a ~2 km loop in Milan).
+3. In **Free run** or **Race** setup, tap **Route** to pick it (the name comes from the GPX `<name>`, or the file name).
+   Race shows the route length but does not change the race distance.
 
-Strumenti già installati: JDK 17 (Temurin) e Android SDK in `%LOCALAPPDATA%\Android\Sdk`.
+On the **Route** page the course is drawn in grey under your track, with start (green) and
+finish (white ring) markers, zoomed to fit both, plus the km left on the course.
+If you are more than 40 m from the course for 3 GPS fixes, an **OFF ROUTE** banner shows the
+distance with one short vibration and the km left turn yellow; under 25 m a **BACK ON ROUTE**
+banner appears (no vibration).
+
+## Using it with Strava (iPhone)
+
+1. Watch: choose the workout → **START** (grant permissions the first time).
+2. iPhone: Strava → **Record** → sensors panel → **Add a sensor** → the watch.
+   You only need to do this the first time; after that Strava reconnects on its own.
+3. Start the activity on Strava. At the end of the run: **End** on the watch and save on Strava.
+
+From the sensor Strava takes **heart rate only**; route, distance and pace are recorded by the iPhone.
+Metrics on the watch use the watch's GPS, so they may differ slightly from Strava.
+
+## Build and install
+
+Tools already installed: JDK 17 (Temurin) and the Android SDK in `%LOCALAPPDATA%\Android\Sdk`.
 
 ```
-gradlew.bat testDebugUnitTest   # test della logica di allenamento
+gradlew.bat testDebugUnitTest   # tests for the workout logic
 gradlew.bat assembleDebug       # → app\build\outputs\apk\debug\app-debug.apk
 ```
 
-Sull'orologio (una volta): *Impostazioni → Sistema → Info* → tocca **Numero build** 7 volte;
-poi *Opzioni sviluppatore* → **Debug ADB** + **Debug wireless** → **Accoppia nuovo dispositivo**.
-Orologio e PC sulla stessa rete Wi-Fi (va bene l'hotspot dell'iPhone):
+On the watch (once): *Settings → System → About* → tap **Build number** 7 times;
+then *Developer options* → **ADB debugging** + **Wireless debugging** → **Pair new device**.
+Watch and PC on the same Wi-Fi network (the iPhone hotspot works):
 
 ```
-adb pair IP:PORTA_ACCOPPIAMENTO CODICE
-adb connect IP:PORTA_DEBUG_WIRELESS
+adb pair IP:PAIRING_PORT CODE
+adb connect IP:WIRELESS_DEBUG_PORT
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-## Problemi comuni
+## Troubleshooting
 
-- *L'iPhone non vede l'orologio*: Impostazioni iOS → Privacy → Bluetooth → Strava attivo;
-  sulla pagina Totali deve comparire "in attesa di iPhone".
-- *"Bluetooth sensore non supportato"*: il chip non permette di trasmettere come periferica;
-  le metriche sull'orologio funzionano comunque.
-- *Battito "--"*: stringi il cinturino; il valore arriva dopo qualche secondo.
+- *The iPhone can't see the watch*: iOS Settings → Privacy → Bluetooth → Strava enabled;
+  the Totals page should show "waiting for iPhone".
+- *"Bluetooth sensor not supported"*: the chip can't advertise as a peripheral;
+  metrics on the watch still work.
+- *Heart rate "--"*: tighten the strap; the value arrives after a few seconds.

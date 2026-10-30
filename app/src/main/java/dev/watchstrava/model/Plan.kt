@@ -1,12 +1,15 @@
 package dev.watchstrava.model
 
-enum class StepKind(val label: String) {
-    WARMUP("Riscaldamento"),
-    WORK("Veloce"),
-    EASY("Lento"),
-    RECOVERY("Recupero"),
-    COOLDOWN("Defaticamento"),
-    RUN("Corsa"),
+import androidx.annotation.StringRes
+import dev.watchstrava.R
+
+enum class StepKind(@StringRes val label: Int) {
+    WARMUP(R.string.step_warmup),
+    WORK(R.string.step_work),
+    EASY(R.string.step_easy),
+    RECOVERY(R.string.step_recovery),
+    COOLDOWN(R.string.step_cooldown),
+    RUN(R.string.step_run),
 }
 
 sealed interface StepLength {
@@ -33,6 +36,9 @@ data class Step(
     val reps: Int = 0,
 )
 
+/** A race over a fixed distance with an optional finish-time goal ([goalSec] 0 = none). */
+data class Race(val meters: Int, val goalSec: Int)
+
 /**
  * A structured plan advances through [steps] (GIRO skips to the next step);
  * a free plan has a single open step and GIRO just marks a lap.
@@ -42,13 +48,20 @@ data class Plan(
     val steps: List<Step>,
     val structured: Boolean,
     val autoLapMeters: Int = 0,
+    val race: Race? = null,
 ) {
     companion object {
         /** Warm-up/cool-down minutes: 0 = none, [UNTIL_LAP] = until GIRO is pressed. */
         const val UNTIL_LAP = -1
 
-        fun free(target: Target = Target.None, autoLapMeters: Int = 1000, name: String = "Corsa libera") =
+        fun free(target: Target = Target.None, autoLapMeters: Int = 1000, name: String = "") =
             Plan(name, listOf(Step(StepKind.RUN, StepLength.Open, target)), structured = false, autoLapMeters)
+
+        /** A free run with km splits plus race progress toward [meters]. */
+        fun race(name: String, meters: Int, goalSec: Int): Plan {
+            require(meters > 0)
+            return Plan(name, listOf(Step(StepKind.RUN, StepLength.Open)), structured = false, 1000, Race(meters, goalSec))
+        }
 
         fun intervals(
             warmupMin: Int,
@@ -57,8 +70,9 @@ data class Plan(
             workTarget: Target,
             recovery: StepLength,
             cooldownMin: Int,
+            name: String = "",
         ) = Plan(
-            "Ripetute",
+            name,
             buildList {
                 warmup(warmupMin)?.let(::add)
                 for (i in 1..reps) {
@@ -70,8 +84,8 @@ data class Plan(
             structured = true,
         )
 
-        fun fartlek(warmupMin: Int, cycles: Int, fastSec: Int, easySec: Int, cooldownMin: Int) = Plan(
-            "Fartlek",
+        fun fartlek(warmupMin: Int, cycles: Int, fastSec: Int, easySec: Int, cooldownMin: Int, name: String = "") = Plan(
+            name,
             buildList {
                 warmup(warmupMin)?.let(::add)
                 for (i in 1..cycles) {

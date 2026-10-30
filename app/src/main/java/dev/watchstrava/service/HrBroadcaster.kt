@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
+import dev.watchstrava.R
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -54,10 +55,10 @@ class HrBroadcaster(private val context: Context, private val onChange: () -> Un
     fun start() {
         val bm = context.getSystemService(BluetoothManager::class.java)
         val adapter = bm.adapter
-        if (adapter == null || !adapter.isEnabled) return fail("Bluetooth spento")
-        advertiser = adapter.bluetoothLeAdvertiser ?: return fail("Bluetooth sensore non supportato")
+        if (adapter == null || !adapter.isEnabled) return fail(context.getString(R.string.ble_off))
+        advertiser = adapter.bluetoothLeAdvertiser ?: return fail(context.getString(R.string.ble_unsupported))
         // Advertising starts once the service is registered (onServiceAdded).
-        server = bm.openGattServer(context, callback) ?: return fail("Bluetooth non disponibile")
+        server = bm.openGattServer(context, callback) ?: return fail(context.getString(R.string.ble_unavailable))
         server!!.addService(buildService())
     }
 
@@ -139,7 +140,7 @@ class HrBroadcaster(private val context: Context, private val onChange: () -> Un
                     ADVERTISE_FAILED_ALREADY_STARTED -> Unit
                     // Watch name too long for the scan response: advertise without it.
                     ADVERTISE_FAILED_DATA_TOO_LARGE -> startAdvertising(includeName = false)
-                    else -> fail("Errore Bluetooth ($errorCode)")
+                    else -> fail(context.getString(R.string.ble_error, errorCode))
                 }
             }
         }
@@ -149,7 +150,7 @@ class HrBroadcaster(private val context: Context, private val onChange: () -> Un
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
             handler.post {
                 if (status == BluetoothGatt.GATT_SUCCESS) startAdvertising()
-                else fail("Errore Bluetooth ($status)")
+                else fail(context.getString(R.string.ble_error, status))
             }
         }
 

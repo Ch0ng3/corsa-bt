@@ -1,5 +1,6 @@
 package dev.watchstrava.model
 
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -23,18 +24,25 @@ object Format {
         else -> "%d:%02d".format(sec / 60, sec % 60)
     }
 
-    /** "5,02" (km, Italian decimal comma). */
-    fun km(meters: Double): String = String.format(Locale.ITALY, "%.2f", meters / 1000)
+    /** "5,02" / "5.02" (km, decimal separator of the current locale). */
+    fun km(meters: Double): String = String.format(Locale.getDefault(), "%.2f", meters / 1000)
 
-    /** "400 m" below 1 km, otherwise "1,5 km". */
-    fun meters(meters: Double): String =
-        if (meters < 1000) "${meters.roundToInt()} m"
-        else String.format(Locale.ITALY, "%.2f km", meters / 1000).replace(",00 km", " km")
+    /** "400 m" below 1 km, otherwise "1,50 km" ("2 km" when whole). */
+    fun meters(meters: Double): String {
+        if (meters < 1000) return "${meters.roundToInt()} m"
+        val locale = Locale.getDefault()
+        val sep = DecimalFormatSymbols.getInstance(locale).decimalSeparator
+        return String.format(locale, "%.2f km", meters / 1000).replace("${sep}00 km", " km")
+    }
 
-    fun length(length: StepLength): String = when (length) {
+    /** "+0:42" ahead / "−1:05" behind. */
+    fun ahead(sec: Int): String = (if (sec >= 0) "+" else "−") + duration(kotlin.math.abs(sec) * 1000L)
+
+    /** [untilLap] is the localized wording for an open step ("fino a GIRO"). */
+    fun length(length: StepLength, untilLap: String): String = when (length) {
         is StepLength.Time -> seconds(length.seconds)
         is StepLength.Distance -> meters(length.meters.toDouble())
-        StepLength.Open -> "fino a GIRO"
+        StepLength.Open -> untilLap
     }
 
     fun target(target: Target, maxHr: Int): String = when (target) {

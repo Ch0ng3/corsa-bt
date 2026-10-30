@@ -1,0 +1,230 @@
+<resources>
+    <!-- Step kinds -->
+    <string name="step_warmup">Riscaldamento</string>
+    <string name="step_work">Veloce</string>
+    <string name="step_easy">Lento</string>
+    <string name="step_recovery">Recupero</string>
+    <string name="step_cooldown">Defaticamento</string>
+    <string name="step_run">Corsa</string>
+    <string name="step_until_lap">fino a GIRO</string>
+
+    <!-- Lap labels saved in history -->
+    <string name="lap_label">Giro %d</string>
+
+    <!-- HR zones -->
+    <string name="zone_rest">Riposo</string>
+    <string name="zone_recovery">Recupero</string>
+    <string name="zone_base">Base</string>
+    <string name="zone_aerobic">Aerobico</string>
+    <string name="zone_threshold">Soglia</string>
+    <string name="zone_max">Massimo</string>
+    <string name="zone_below">sotto Z1</string>
+
+    <!-- Data fields: full label / short label in the 2×2 grid -->
+    <string name="field_pace">Passo attuale</string>
+    <string name="field_pace_short">PASSO</string>
+    <string name="field_lap_pace">Passo giro (media)</string>
+    <string name="field_lap_pace_short">MEDIA GIRO</string>
+    <string name="field_avg_pace">Passo medio totale</string>
+    <string name="field_avg_pace_short">MEDIA TOT</string>
+    <string name="field_hr">Battito</string>
+    <string name="field_hr_short">BATTITO</string>
+    <string name="field_lap_hr">Battito medio giro</string>
+    <string name="field_lap_hr_short">♥ GIRO</string>
+    <string name="field_avg_hr">Battito medio totale</string>
+    <string name="field_avg_hr_short">♥ MEDIO</string>
+    <string name="field_cadence">Cadenza</string>
+    <string name="field_cadence_short">CADENZA</string>
+    <string name="field_lap_time">Tempo giro</string>
+    <string name="field_lap_time_short">T. GIRO</string>
+    <string name="field_lap_dist">Distanza giro</string>
+    <string name="field_lap_dist_short">DIST. GIRO</string>
+    <string name="field_clock">Ora</string>
+    <string name="field_clock_short">ORA</string>
+    <string name="field_remaining">Km mancanti</string>
+    <string name="field_remaining_short">KM MANCANTI</string>
+    <string name="field_finish">Arrivo previsto</string>
+    <string name="field_finish_short">ARRIVO</string>
+    <string name="field_needed_pace">Passo necessario</string>
+    <string name="field_needed_pace_short">PASSO NEC.</string>
+    <string name="field_race_delta">Avanti/indietro</string>
+    <string name="field_race_delta_short">VS OBIETTIVO</string>
+    <string name="field_distance">Km percorsi</string>
+
+    <!-- Accent colours -->
+    <string name="accent_orange">Arancio</string>
+    <string name="accent_blue">Azzurro</string>
+    <string name="accent_aqua">Acqua</string>
+    <string name="accent_lime">Lime</string>
+    <string name="accent_purple">Viola</string>
+    <string name="accent_pink">Rosa</string>
+    <string name="accent_gold">Oro</string>
+
+    <!-- Home -->
+    <string name="greeting">Ciao, %s</string>
+    <string name="plan_free">Corsa libera</string>
+    <string name="home_free_desc">Passo, zone, km automatici</string>
+    <string name="home_race">Gara</string>
+    <string name="home_race_desc">5K, 10K, mezza, maratona</string>
+    <string name="plan_intervals">Ripetute</string>
+    <string name="home_intervals_desc">Riscaldamento, N × veloce + recupero</string>
+    <string name="home_fartlek_desc">Cambi di ritmo a tempo o liberi</string>
+    <string name="home_sensor">Solo sensore cardio</string>
+    <string name="home_sensor_desc">Battito a Strava, senza GPS</string>
+    <string name="home_history">Storico</string>
+    <string name="home_history_desc">Allenamenti passati</string>
+    <string name="home_customize">Personalizza</string>
+    <string name="home_customize_desc">Colore, nome, dati a schermo</string>
+    <string name="home_settings">Impostazioni</string>
+    <string name="home_settings_desc">FC max, km auto, pausa auto…</string>
+
+    <!-- Setup: target -->
+    <string name="target">Obiettivo</string>
+    <string name="target_none">Nessuno</string>
+    <string name="target_pace">Passo</string>
+    <string name="target_zone">Zona cardio</string>
+    <string name="target_pace_label">Passo obiettivo /km</string>
+    <string name="tolerance">Tolleranza</string>
+    <string name="zone_range">Zona · %1$d–%2$d bpm</string>
+    <string name="until_lap">Fino a GIRO</string>
+    <string name="no">No</string>
+
+    <!-- Setup: GPX route -->
+    <string name="route">Percorso</string>
+    <string name="route_none">Nessuno</string>
+    <string name="route_add_note">Aggiungi GPX: adb push file.gpx …/files/routes</string>
+    <string name="route_length">Percorso: %s</string>
+
+    <!-- Setup: free run -->
+    <string name="free_note_target">Il passo/battito si colora fuori obiettivo, senza vibrare</string>
+    <string name="free_autolap_on">Giro automatico ogni km</string>
+    <string name="free_autolap_off">Giro automatico spento</string>
+
+    <!-- Setup: race -->
+    <string name="race_name_5k">Gara 5 km</string>
+    <string name="race_name_10k">Gara 10 km</string>
+    <string name="race_half">Mezza maratona</string>
+    <string name="race_marathon">Maratona</string>
+    <string name="race_name_custom">Gara %s</string>
+    <string name="race_other">Altra distanza</string>
+    <string name="distance">Distanza</string>
+    <string name="race_goal_finish">Tempo finale</string>
+    <string name="goal_time">Tempo obiettivo</string>
+    <string name="avg_pace">Passo medio</string>
+    <string name="race_note">Giro ogni km, pausa automatica spenta: avvia allo sparo. Nessun avviso rallenta/accelera.</string>
+
+    <!-- Setup: intervals -->
+    <string name="reps">Ripetute</string>
+    <string name="rep_by">Ripetuta a</string>
+    <string name="time">Tempo</string>
+    <string name="fast_distance">Distanza veloce</string>
+    <string name="fast_duration">Durata veloce</string>
+    <string name="recovery_by">Recupero a</string>
+    <string name="recovery_duration">Durata recupero</string>
+    <string name="recovery_distance">Distanza recupero</string>
+    <string name="intervals_note">GIRO salta allo step successivo</string>
+
+    <!-- Setup: fartlek -->
+    <string name="mode">Modalità</string>
+    <string name="mode_timed">A tempo</string>
+    <string name="mode_free">Libero</string>
+    <string name="cycles">Cicli</string>
+    <string name="fartlek_free_note">Corri libero e premi GIRO (o il tasto fisico) a ogni cambio di ritmo: ogni tratto diventa un giro con passo e battito.</string>
+    <string name="plan_fartlek_free">Fartlek libero</string>
+
+    <!-- Setup: sensor only -->
+    <string name="sensor_title">Solo sensore</string>
+    <string name="sensor_note">L\'orologio trasmette solo il battito. Su iPhone: Strava → Registra → Sensori → Aggiungi.</string>
+    <string name="sensor_start">AVVIA SENSORE</string>
+    <string name="plan_sensor">Sensore cardio</string>
+    <string name="start">AVVIA</string>
+
+    <!-- Settings -->
+    <string name="max_hr">FC massima</string>
+    <string name="auto_lap">Giro auto 1 km</string>
+    <string name="auto_pause">Pausa automatica</string>
+    <string name="auto_pause_desc">Quando ti fermi</string>
+    <string name="broadcast_hr">Battito a iPhone</string>
+    <string name="broadcast_hr_desc">Sensore Bluetooth per Strava</string>
+    <string name="screen_on">Schermo acceso</string>
+    <string name="screen_on_desc">Durante l\'allenamento</string>
+    <string name="vibration">Vibrazione</string>
+    <string name="vibration_desc">Giri, step e avvisi</string>
+
+    <!-- Customize -->
+    <string name="slot_top_left">Campo in alto a sinistra</string>
+    <string name="slot_top_right">Campo in alto a destra</string>
+    <string name="slot_bottom_left">Campo in basso a sinistra</string>
+    <string name="slot_bottom_right">Campo in basso a destra</string>
+    <string name="color">Colore</string>
+    <string name="show_name">Mostra nome</string>
+    <string name="customize_note_run">Schermata principale della corsa (anche in ripetute e fartlek)</string>
+    <string name="customize_note_race">Schermata principale in gara (sopra: tempo e distacco dall\'obiettivo)</string>
+    <string name="reset_fields">Ripristina campi</string>
+
+    <!-- History / summary -->
+    <string name="history_empty">Nessun allenamento salvato</string>
+    <string name="summary_done">Fatto!</string>
+    <string name="summary_strava_note">Ricordati di terminare e salvare l\'attività su Strava (iPhone)</string>
+    <string name="delete">Elimina</string>
+    <string name="avg_max_hr">FC media / max</string>
+    <string name="avg_cadence">Cadenza media</string>
+    <string name="time_in_zone">Tempo in zona</string>
+    <string name="laps">Giri</string>
+
+    <!-- Run screen -->
+    <string name="auto_paused">PAUSA AUTO</string>
+    <string name="paused">IN PAUSA</string>
+    <string name="press_lap_to_advance">premi GIRO per avanzare</string>
+    <string name="ahead">avanti</string>
+    <string name="behind">indietro</string>
+    <string name="next_step">Poi: %1$s %2$s</string>
+    <string name="completed">COMPLETATO</string>
+    <string name="target_status">obiettivo %s</string>
+    <string name="finish_line">TRAGUARDO!</string>
+    <string name="waiting_gps">In attesa del GPS…</string>
+    <string name="gps_denied">GPS non autorizzato</string>
+    <string name="gps_searching">Ricerca GPS…</string>
+    <string name="gps_missing">GPS assente</string>
+    <string name="lap_n">GIRO %d</string>
+    <string name="per_km_avg">/km medio</string>
+    <string name="hr_avg">♥ medio</string>
+    <string name="pct_max_hr">%d%% FC max</string>
+    <string name="avg_value">media %d</string>
+    <string name="avg_hr">FC media</string>
+    <string name="cadence">Cadenza</string>
+    <string name="resume">Riprendi</string>
+    <string name="pause">Pausa</string>
+    <string name="next_step_button">Step successivo</string>
+    <string name="lap">Giro</string>
+    <string name="tap_to_end">Tocca per finire</string>
+    <string name="end">Fine</string>
+    <string name="iphone_connected">iPhone collegato</string>
+    <string name="waiting_iphone">Battito: in attesa di iPhone</string>
+    <string name="route_left">%s km rimanenti</string>
+
+    <!-- Workout service -->
+    <string name="vs_goal">%s sull\'obiettivo</string>
+    <string name="alert_slow_down">RALLENTA</string>
+    <string name="alert_too_fast">Sei più veloce del passo obiettivo</string>
+    <string name="alert_speed_up">ACCELERA</string>
+    <string name="alert_too_slow">Sei più lento del passo obiettivo</string>
+    <string name="alert_hr_high">BATTITI ALTI</string>
+    <string name="alert_above_zone">Sopra la zona obiettivo</string>
+    <string name="alert_hr_low">BATTITI BASSI</string>
+    <string name="alert_below_zone">Sotto la zona obiettivo</string>
+    <string name="plan_done">COMPLETATO!</string>
+    <string name="plan_done_detail">Allenamento finito.\nCorsa libera finché premi Fine</string>
+    <string name="resumed">RIPRESO</string>
+    <string name="off_route">FUORI PERCORSO</string>
+    <string name="back_on_route">SUL PERCORSO</string>
+    <string name="channel_workout">Allenamento</string>
+    <string name="workout_in_progress">Allenamento in corso</string>
+    <string name="permissions_needed">Servono i permessi di posizione o sensori</string>
+
+    <!-- Bluetooth broadcaster -->
+    <string name="ble_off">Bluetooth spento</string>
+    <string name="ble_unsupported">Bluetooth sensore non supportato</string>
+    <string name="ble_unavailable">Bluetooth non disponibile</string>
+    <string name="ble_error">Errore Bluetooth (%d)</string>
+</resources>

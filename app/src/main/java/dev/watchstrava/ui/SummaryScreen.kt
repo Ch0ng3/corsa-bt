@@ -15,20 +15,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyListScope
 import androidx.wear.compose.material.Text
+import dev.watchstrava.R
 import dev.watchstrava.engine.Summary
 import dev.watchstrava.model.Format
 
 @Composable
 fun SummaryScreen(summary: Summary, onDone: () -> Unit) = ScreenList {
-    header("Fatto!", Good)
+    header(R.string.summary_done, Good)
     summaryItems(summary)
-    note("Ricordati di terminare e salvare l'attività su Strava (iPhone)")
-    item { StartChip("OK", onDone) }
+    note(R.string.summary_strava_note)
+    item { StartChip(stringResource(R.string.ok), onDone) }
 }
 
 @Composable
@@ -36,7 +38,7 @@ fun HistoryDetail(summary: Summary, onDelete: () -> Unit) = ScreenList {
     header(summary.name)
     note(formatDate(summary.startedAt))
     summaryItems(summary)
-    item { MenuChip("Elimina", color = Color(0xFF5A1A1A), onClick = onDelete) }
+    item { MenuChip(stringResource(R.string.delete), color = Color(0xFF5A1A1A), onClick = onDelete) }
 }
 
 fun ScalingLazyListScope.summaryItems(s: Summary) {
@@ -46,18 +48,18 @@ fun ScalingLazyListScope.summaryItems(s: Summary) {
             Text("km", color = Muted, fontSize = 12.sp)
         }
     }
-    item { StatRow("Tempo", Format.duration(s.movingMs)) }
-    item { StatRow("Passo medio", "${Format.pace(s.pace)} /km") }
-    s.avgHr?.let { item { StatRow("FC media / max", "$it / ${s.maxHr ?: "--"}") } }
-    s.avgCadence?.let { item { StatRow("Cadenza media", "$it spm") } }
+    item { StatRow(stringResource(R.string.time), Format.duration(s.movingMs)) }
+    item { StatRow(stringResource(R.string.avg_pace), "${Format.pace(s.pace)} /km") }
+    s.avgHr?.let { item { StatRow(stringResource(R.string.avg_max_hr), "$it / ${s.maxHr ?: "--"}") } }
+    s.avgCadence?.let { item { StatRow(stringResource(R.string.avg_cadence), stringResource(R.string.fmt_spm, it)) } }
 
     val totalZone = s.zoneMs.drop(1).sum()
     if (totalZone > 0) {
-        item { Text("Tempo in zona", color = Muted, fontSize = 12.sp) }
+        item { Text(stringResource(R.string.time_in_zone), color = Muted, fontSize = 12.sp) }
         for (z in 5 downTo 1) item { ZoneBar(z, s.zoneMs[z], totalZone) }
     }
     if (s.laps.size > 1) {
-        item { Text("Giri", color = Muted, fontSize = 12.sp) }
+        item { Text(stringResource(R.string.laps), color = Muted, fontSize = 12.sp) }
         s.laps.forEach { lap ->
             item {
                 Column(

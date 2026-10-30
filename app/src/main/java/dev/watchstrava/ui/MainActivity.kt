@@ -19,9 +19,12 @@ import androidx.compose.ui.platform.LocalView
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import dev.watchstrava.R
 import dev.watchstrava.data.History
+import dev.watchstrava.data.Routes
 import dev.watchstrava.data.Settings
 import dev.watchstrava.model.Plan
+import dev.watchstrava.model.Route
 import dev.watchstrava.service.WorkoutService
 import dev.watchstrava.service.WorkoutSession
 
@@ -40,6 +43,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         settings = Settings(this)
         accentIndex.intValue = settings.accent
+        Routes.dir(this) // creates the folder for `adb push`
         setContent {
             AppTheme {
                 App(settings, History(this), ::startWorkout, ::command)
@@ -47,7 +51,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startWorkout(plan: Plan, useGps: Boolean) {
+    private fun startWorkout(plan: Plan, useGps: Boolean, route: Route?) {
         if (afterPermissions != null) return // permission dialog already pending (double tap)
         val needed = buildList {
             if (useGps) add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -68,11 +72,12 @@ class MainActivity : ComponentActivity() {
                 if (settings.broadcastHr && Build.VERSION.SDK_INT >= 31) add(Manifest.permission.BLUETOOTH_CONNECT)
             }.any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
             if (!anyType) {
-                Toast.makeText(this, "Servono i permessi di posizione o sensori", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, R.string.permissions_needed, Toast.LENGTH_LONG).show()
                 return@go
             }
             WorkoutSession.pendingPlan = plan
             WorkoutSession.pendingUseGps = useGps
+            WorkoutSession.pendingRoute = route
             startForegroundService(Intent(this, WorkoutService::class.java).setAction(WorkoutService.ACTION_START))
         }
         if (needed.isEmpty()) {
@@ -107,7 +112,7 @@ class MainActivity : ComponentActivity() {
 private fun App(
     settings: Settings,
     history: History,
-    startWorkout: (Plan, Boolean) -> Unit,
+    startWorkout: (Plan, Boolean, Route?) -> Unit,
     command: (RunCommand) -> Unit,
 ) {
     val live by WorkoutSession.live.collectAsState()
@@ -133,16 +138,18 @@ private fun App(
 }
 
 @Composable
-private fun NavGraph(settings: Settings, history: History, startWorkout: (Plan, Boolean) -> Unit) {
+private fun NavGraph(settings: Settings, history: History, startWorkout: (Plan, Boolean, Route?) -> Unit) {
     val nav = rememberSwipeDismissableNavController()
-    val run = remember { { plan: Plan -> startWorkout(plan, true) } }
+    val run = remember { { plan: Plan -> startWorkout(plan, true, null) } }
+    val runRoute = remember { { plan: Plan, route: Route? -> startWorkout(plan, true, route) } }
     SwipeDismissableNavHost(navController = nav, startDestination = "home") {
         composable("home") { HomeScreen(settings) { nav.navigate(it) } }
         composable("customize") { CustomizeScreen(settings) }
-        composable("free") { FreeRunSetup(settings, run) }
+        composable("free") { FreeRunSetup(settings, runRoute) }
+        composable("race") { RaceSetup(settings, runRoute) }
         composable("intervals") { IntervalsSetup(settings, run) }
         composable("fartlek") { FartlekSetup(settings, run) }
-        composable("sensor") { SensorSetup { startWorkout(it, false) } }
+        composable("sensor") { SensorSetup { startWorkout(it, false, null) } }
         composable("settings") { SettingsScreen(settings) }
         composable("history") { HistoryScreen(history) { nav.navigate("history/$it") } }
         composable("history/{id}") { entry ->
